@@ -363,7 +363,8 @@ After running `pnpm db:seed`:
 | Role    | Email                 | Password  |
 | ------- | --------------------- | --------- |
 | Admin   | admin@osz-teltow.de   | admin123  |
-| Teacher | mueller@osz-teltow.de | lehrer123 |
+
+> Don't forget to change password after first login!!!
 
 ---
 

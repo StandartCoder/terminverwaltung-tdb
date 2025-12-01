@@ -1,0 +1,33 @@
+{
+  "name": "@terminverwaltung/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "dotenv -e ../../.env -- prisma db push",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "studio": "dotenv -e ../../.env -- prisma studio",
+    "lint": "eslint src prisma --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.1"
+  },
+  "devDependencies": {
+    "@terminverwaltung/eslint-config": "workspace:*",
+    "@terminverwaltung/typescript-config": "workspace:*",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.0.1",
+    "tsx": "^4.19.2"
+  }
+}

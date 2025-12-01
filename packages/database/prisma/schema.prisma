@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// CORE ENTITIES
+// =============================================================================
+
+// Fachbereich (Department) - e.g., IT, Wirtschaft, Gesundheit
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  shortCode String   @unique // e.g., "IT", "WI", "GE"
+  color     String?  // hex color for UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teachers Teacher[]
+
+  @@map("departments")
+}
+
+// Lehrkraft (Teacher) - can manage their own timeslots
+model Teacher {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  room               String?  // Raumnummer for appointments
+  isAdmin            Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(true) // force password change on first login
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  timeSlots TimeSlot[]
+  bookings  Booking[]
+
+  @@index([departmentId])
+  @@index([email])
+  @@map("teachers")
+}
+
+// =============================================================================
+// BOOKING SYSTEM
+// =============================================================================
+
+// Verfügbare Zeitslots der Lehrkräfte
+model TimeSlot {
+  id        String         @id @default(cuid())
+  date      DateTime       @db.Date
+  startTime DateTime       @db.Time(0)
+  endTime   DateTime       @db.Time(0)
+  status    TimeSlotStatus @default(AVAILABLE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  booking Booking?
+
+  @@unique([teacherId, date, startTime])
+  @@index([date])
+  @@index([status])
+  @@index([teacherId, date])
+  @@map("time_slots")
+}
+
+enum TimeSlotStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED // manually blocked by teacher
+}
+
+// Buchung (Booking) - Betrieb/Eltern books a timeslot with a teacher
+// Company info is stored directly on the booking (no separate Company entity)
+// This follows the requirement: "keine Anmeldung oder Registrierung erforderlich"
+model Booking {
+  id               String        @id @default(cuid())
+  status           BookingStatus @default(CONFIRMED)
+  cancellationCode String        @unique @default(cuid()) // for self-service cancellation
+
+  // Company/Betrieb info - entered at booking time, not from a predefined list
+  companyName    String
+  companyEmail   String
+  companyPhone   String?
+  contactName    String? // Ansprechpartner
+  studentCount   Int      @default(1) // Number of students being discussed (for large company handling >5)
+  
+  // Optional: Student name if discussing a specific trainee
+  studentName    String?
+  studentClass   String?  // e.g., "FI23A"
+  
+  // Optional: Parent info if parent is attending (for minors)
+  parentName     String?
+  parentEmail    String?
+  
+  notes          String?  // optional notes from booker
+
+  bookedAt    DateTime  @default(now())
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  timeSlotId String   @unique
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  emailLogs EmailLog[]
+
+  @@index([status])
+  @@index([companyEmail])
+  @@index([teacherId])
+  @@index([cancellationCode])
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+// =============================================================================
+// EMAIL & LOGGING
+// =============================================================================
+
+model EmailLog {
+  id        String      @id @default(cuid())
+  type      EmailType
+  recipient String
+  subject   String
+  body      String?
+  sentAt    DateTime    @default(now())
+  status    EmailStatus @default(PENDING)
+  error     String?
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("email_logs")
+}
+
+enum EmailType {
+  BOOKING_CONFIRMATION
+  BOOKING_CANCELLATION
+  BOOKING_REMINDER
+  BOOKING_UPDATE
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// =============================================================================
+// EVENT & SETTINGS
+// =============================================================================
+
+// Event/Veranstaltung - "Tag der Betriebe"
+model Event {
+  id                String   @id @default(cuid())
+  name              String   // e.g., "Tag der Betriebe 2025"
+  description       String?
+  startDate         DateTime @db.Date
+  endDate           DateTime @db.Date
+  bookingOpenAt     DateTime? // when booking becomes available
+  bookingCloseAt    DateTime? // deadline for bookings
+  defaultSlotLength Int      @default(20) // minutes
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("events")
+}
+
+// System-Einstellungen
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}

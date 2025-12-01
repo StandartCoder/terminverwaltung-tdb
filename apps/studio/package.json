@@ -1,0 +1,14 @@
+{
+  "name": "@terminverwaltung/studio",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- prisma studio --schema ../../packages/database/prisma/schema.prisma --port 3002",
+    "clean": "rm -rf node_modules .turbo"
+  },
+  "devDependencies": {
+    "@terminverwaltung/typescript-config": "workspace:*",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.0.1"
+  }
+}

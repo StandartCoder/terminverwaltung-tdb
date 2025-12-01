@@ -129,7 +129,7 @@ const createTeacherSchema = z.object({
   firstName: z.string().min(1, 'Vorname erforderlich'),
   lastName: z.string().min(1, 'Nachname erforderlich'),
   room: z.string().optional(),
-  departmentId: z.string().cuid(),
+  departmentId: z.string().cuid().optional(),
   isAdmin: z.boolean().optional().default(false),
 })
 
@@ -144,12 +144,14 @@ teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
     )
   }
 
-  const department = await db.department.findUnique({ where: { id: body.departmentId } })
-  if (!department) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
+  if (body.departmentId) {
+    const department = await db.department.findUnique({ where: { id: body.departmentId } })
+    if (!department) {
+      return c.json(
+        { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
   }
 
   const teacher = await db.teacher.create({

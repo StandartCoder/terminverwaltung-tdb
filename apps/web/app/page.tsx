@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Building2,
   Calendar,
+  CalendarOff,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -48,9 +49,22 @@ export default function HomePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
+  const {
+    data: activeEvent,
+    isLoading: loadingEvent,
+    isError: eventError,
+  } = useQuery({
+    queryKey: ['activeEvent'],
+    queryFn: () => api.events.getActive(),
+    retry: false,
+  })
+
+  const hasActiveEvent = !eventError && !!activeEvent?.data
+
   const { data: departments, isLoading: loadingDepartments } = useQuery({
     queryKey: ['departments'],
     queryFn: () => api.departments.list(),
+    enabled: hasActiveEvent,
   })
 
   const { data: availableDates } = useQuery({
@@ -185,432 +199,461 @@ export default function HomePage() {
 
       <main className="container py-8 md:py-12">
         <div className="mx-auto max-w-4xl">
-          {step !== 'confirmation' && (
-            <div className="mb-8 text-center">
-              <h2 className="text-3xl font-bold tracking-tight">Termin buchen</h2>
-              <p className="text-muted-foreground mt-2">
-                Vereinbaren Sie einen Gesprächstermin mit unseren Lehrkräften
-              </p>
+          {loadingEvent ? (
+            <div className="flex flex-col items-center justify-center py-24">
+              <div className="bg-muted h-16 w-16 animate-pulse rounded-full" />
+              <p className="text-muted-foreground mt-4">Lade Veranstaltung...</p>
             </div>
-          )}
-
-          {/* Progress Steps */}
-          {step !== 'confirmation' && (
-            <div className="mb-8 flex items-center justify-center gap-2">
-              {['department', 'date', 'slot', 'form'].map((s, i) => (
-                <div key={s} className="flex items-center">
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                      step === s
-                        ? 'bg-primary text-primary-foreground'
-                        : ['department', 'date', 'slot', 'form'].indexOf(step) > i
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {i + 1}
-                  </div>
-                  {i < 3 && (
-                    <ChevronRight
-                      className={`mx-1 h-4 w-4 ${
-                        ['department', 'date', 'slot', 'form'].indexOf(step) > i
-                          ? 'text-primary'
-                          : 'text-muted-foreground/50'
-                      }`}
-                    />
-                  )}
+          ) : !hasActiveEvent ? (
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+                  <CalendarOff className="h-10 w-10 text-amber-600 dark:text-amber-400" />
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Step 1: Department Selection */}
-          {step === 'department' && (
-            <div className="space-y-4">
-              <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie einen Fachbereich</h3>
-              {loadingDepartments ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-muted h-32 animate-pulse rounded-xl" />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {departments?.data.map((dept) => (
-                    <button
-                      key={dept.id}
-                      onClick={() => handleDepartmentSelect(dept)}
-                      className="bg-card hover:border-primary hover:shadow-primary/5 group relative overflow-hidden rounded-xl border p-6 text-left transition-all hover:shadow-lg"
-                    >
-                      <div
-                        className="absolute inset-0 opacity-5 transition-opacity group-hover:opacity-10"
-                        style={{ backgroundColor: dept.color || '#3B82F6' }}
-                      />
-                      <div
-                        className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg font-bold text-white"
-                        style={{ backgroundColor: dept.color || '#3B82F6' }}
-                      >
-                        {dept.shortCode}
-                      </div>
-                      <h4 className="font-semibold">{dept.name}</h4>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        {dept._count?.teachers || 0} Lehrkräfte
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 2: Date Selection */}
-          {step === 'date' && (
-            <div className="space-y-4">
-              <div className="mb-6 flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={handleBack}>
-                  Zurück
-                </Button>
-                <span className="text-muted-foreground">|</span>
-                <span className="font-medium">{selectedDepartment?.name}</span>
-              </div>
-
-              <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie ein Datum</h3>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                {availableDates?.data.map((date) => (
-                  <button
-                    key={date}
-                    onClick={() => handleDateSelect(date.split('T')[0])}
-                    className="bg-card hover:border-primary group rounded-xl border p-6 text-left transition-all hover:shadow-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 text-primary flex h-14 w-14 flex-col items-center justify-center rounded-lg">
-                        <Calendar className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-semibold">{formatDateDisplay(date)}</p>
-                        <p className="text-muted-foreground text-sm">Verfügbare Termine</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {availableDates?.data.length === 0 && (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
-                    <p className="text-muted-foreground mt-4">Keine verfügbaren Termine</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Step 3: Time Slot Selection */}
-          {step === 'slot' && (
-            <div className="space-y-4">
-              <div className="mb-6 flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={handleBack}>
-                  Zurück
-                </Button>
-                <span className="text-muted-foreground">|</span>
-                <span className="font-medium">{selectedDepartment?.name}</span>
-                <span className="text-muted-foreground">|</span>
-                <span className="font-medium">
-                  {selectedDate && formatDateDisplay(selectedDate)}
-                </span>
-              </div>
-
-              <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie einen Termin</h3>
-
-              {loadingSlots ? (
-                <div className="space-y-4">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="bg-muted h-48 animate-pulse rounded-xl" />
-                  ))}
-                </div>
-              ) : slots?.data && slots.data.length > 0 ? (
-                <div className="space-y-6">
-                  {Object.entries(groupSlotsByTeacher(slots.data)).map(
-                    ([teacherId, teacherSlots]) => {
-                      const teacher = teacherSlots[0]?.teacher
-                      if (!teacher) return null
-
-                      return (
-                        <Card key={teacherId}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center gap-4">
-                              <div
-                                className="flex h-12 w-12 items-center justify-center rounded-full font-medium text-white"
-                                style={{ backgroundColor: teacher.department?.color || '#3B82F6' }}
-                              >
-                                {teacher.firstName[0]}
-                                {teacher.lastName[0]}
-                              </div>
-                              <div>
-                                <CardTitle className="text-lg">
-                                  {teacher.firstName} {teacher.lastName}
-                                </CardTitle>
-                                <CardDescription className="flex items-center gap-2">
-                                  {teacher.room && (
-                                    <>
-                                      <MapPin className="h-3 w-3" />
-                                      Raum {teacher.room}
-                                    </>
-                                  )}
-                                </CardDescription>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex flex-wrap gap-2">
-                              {teacherSlots.map((slot) => (
-                                <button
-                                  key={slot.id}
-                                  onClick={() => handleSlotSelect(slot)}
-                                  className="bg-background hover:border-primary hover:bg-primary hover:text-primary-foreground inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all"
-                                >
-                                  <Clock className="h-4 w-4" />
-                                  {formatTimeDisplay(slot.startTime)} -{' '}
-                                  {formatTimeDisplay(slot.endTime)}
-                                </button>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    }
-                  )}
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
-                    <p className="text-muted-foreground mt-4">
-                      Keine verfügbaren Termine für dieses Datum
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Step 4: Booking Form */}
-          {step === 'form' && selectedSlot && (
-            <div className="space-y-6">
-              <div className="mb-6 flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={handleBack}>
-                  Zurück
-                </Button>
-              </div>
-
-              <Card className="border-primary/20">
-                <CardHeader className="bg-primary/5 border-b">
-                  <CardTitle className="text-lg">Ausgewählter Termin</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="text-muted-foreground h-5 w-5" />
-                      <div>
-                        <p className="text-muted-foreground text-sm">Datum</p>
-                        <p className="font-medium">
-                          {selectedDate && formatDateDisplay(selectedDate)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Clock className="text-muted-foreground h-5 w-5" />
-                      <div>
-                        <p className="text-muted-foreground text-sm">Uhrzeit</p>
-                        <p className="font-medium">
-                          {formatTimeDisplay(selectedSlot.startTime)} -{' '}
-                          {formatTimeDisplay(selectedSlot.endTime)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <User className="text-muted-foreground h-5 w-5" />
-                      <div>
-                        <p className="text-muted-foreground text-sm">Lehrkraft</p>
-                        <p className="font-medium">
-                          {selectedSlot.teacher?.firstName} {selectedSlot.teacher?.lastName}
-                        </p>
-                      </div>
-                    </div>
-                    {selectedSlot.teacher?.room && (
-                      <div className="flex items-center gap-3">
-                        <MapPin className="text-muted-foreground h-5 w-5" />
-                        <div>
-                          <p className="text-muted-foreground text-sm">Raum</p>
-                          <p className="font-medium">{selectedSlot.teacher.room}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Ihre Kontaktdaten</CardTitle>
-                  <CardDescription>
-                    Bitte geben Sie Ihre Firmendaten ein. Sie erhalten eine Bestätigung per E-Mail.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="companyName">
-                          <Building2 className="mr-2 inline h-4 w-4" />
-                          Firmenname *
-                        </Label>
-                        <Input
-                          id="companyName"
-                          placeholder="Muster GmbH"
-                          {...form.register('companyName')}
-                        />
-                        {form.formState.errors.companyName && (
-                          <p className="text-destructive text-sm">
-                            {form.formState.errors.companyName.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="contactName">
-                          <User className="mr-2 inline h-4 w-4" />
-                          Ansprechpartner *
-                        </Label>
-                        <Input
-                          id="contactName"
-                          placeholder="Max Mustermann"
-                          {...form.register('contactName')}
-                        />
-                        {form.formState.errors.contactName && (
-                          <p className="text-destructive text-sm">
-                            {form.formState.errors.contactName.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="companyEmail">
-                          <Mail className="mr-2 inline h-4 w-4" />
-                          E-Mail-Adresse *
-                        </Label>
-                        <Input
-                          id="companyEmail"
-                          type="email"
-                          placeholder="kontakt@firma.de"
-                          {...form.register('companyEmail')}
-                        />
-                        {form.formState.errors.companyEmail && (
-                          <p className="text-destructive text-sm">
-                            {form.formState.errors.companyEmail.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="companyPhone">
-                          <Phone className="mr-2 inline h-4 w-4" />
-                          Telefon (optional)
-                        </Label>
-                        <Input
-                          id="companyPhone"
-                          type="tel"
-                          placeholder="+49 30 12345678"
-                          {...form.register('companyPhone')}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Notizen (optional)</Label>
-                      <textarea
-                        id="notes"
-                        className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                        placeholder="z.B. Name des Auszubildenden oder besondere Anliegen"
-                        {...form.register('notes')}
-                      />
-                    </div>
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      size="lg"
-                      disabled={bookingMutation.isPending}
-                    >
-                      {bookingMutation.isPending ? 'Wird gebucht...' : 'Termin verbindlich buchen'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Step 5: Confirmation */}
-          {step === 'confirmation' && confirmation && (
-            <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
-              <CardContent className="pb-8 pt-8">
-                <div className="flex flex-col items-center text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                    <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h2 className="mt-4 text-2xl font-bold">Buchung erfolgreich!</h2>
-                  <p className="text-muted-foreground mt-2 max-w-md">
-                    Sie erhalten in Kürze eine Bestätigung per E-Mail mit allen Details und einem
-                    Link zur Stornierung.
-                  </p>
-
-                  <div className="bg-card mt-8 w-full max-w-md rounded-lg border p-6 text-left">
-                    <h3 className="mb-4 font-semibold">Termindetails</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <Calendar className="text-muted-foreground h-5 w-5" />
-                        <span>{formatDateDisplay(confirmation.timeSlot.date)}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Clock className="text-muted-foreground h-5 w-5" />
-                        <span>
-                          {formatTimeDisplay(confirmation.timeSlot.startTime)} -{' '}
-                          {formatTimeDisplay(confirmation.timeSlot.endTime)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <User className="text-muted-foreground h-5 w-5" />
-                        <span>
-                          {confirmation.teacher.firstName} {confirmation.teacher.lastName}
-                        </span>
-                      </div>
-                      {confirmation.teacher.room && (
-                        <div className="flex items-center gap-3">
-                          <MapPin className="text-muted-foreground h-5 w-5" />
-                          <span>Raum {confirmation.teacher.room}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-6 border-t pt-4">
-                      <p className="text-muted-foreground text-sm">Stornierungscode:</p>
-                      <code className="bg-muted mt-1 block rounded px-3 py-2 font-mono text-sm">
-                        {confirmation.cancellationCode}
-                      </code>
-                      <p className="text-muted-foreground mt-2 text-xs">
-                        Bewahren Sie diesen Code auf, falls Sie den Termin stornieren möchten.
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button onClick={resetBooking} className="mt-8" variant="outline">
-                    Weiteren Termin buchen
-                  </Button>
-                </div>
+                <h2 className="mt-6 text-2xl font-bold">Keine aktive Veranstaltung</h2>
+                <p className="text-muted-foreground mt-3 max-w-md text-center">
+                  Aktuell ist kein Tag der Betriebe aktiv. Bitte schauen Sie zu einem späteren
+                  Zeitpunkt wieder vorbei.
+                </p>
               </CardContent>
             </Card>
+          ) : (
+            <>
+              {step !== 'confirmation' && (
+                <div className="mb-8 text-center">
+                  <h2 className="text-3xl font-bold tracking-tight">Termin buchen</h2>
+                  <p className="text-muted-foreground mt-2">
+                    Vereinbaren Sie einen Gesprächstermin mit unseren Lehrkräften
+                  </p>
+                </div>
+              )}
+
+              {/* Progress Steps */}
+              {step !== 'confirmation' && (
+                <div className="mb-8 flex items-center justify-center gap-2">
+                  {['department', 'date', 'slot', 'form'].map((s, i) => (
+                    <div key={s} className="flex items-center">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                          step === s
+                            ? 'bg-primary text-primary-foreground'
+                            : ['department', 'date', 'slot', 'form'].indexOf(step) > i
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {i + 1}
+                      </div>
+                      {i < 3 && (
+                        <ChevronRight
+                          className={`mx-1 h-4 w-4 ${
+                            ['department', 'date', 'slot', 'form'].indexOf(step) > i
+                              ? 'text-primary'
+                              : 'text-muted-foreground/50'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Step 1: Department Selection */}
+              {step === 'department' && (
+                <div className="space-y-4">
+                  <h3 className="mb-6 text-center text-lg font-medium">
+                    Wählen Sie einen Fachbereich
+                  </h3>
+                  {loadingDepartments ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="bg-muted h-32 animate-pulse rounded-xl" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {departments?.data.map((dept) => (
+                        <button
+                          key={dept.id}
+                          onClick={() => handleDepartmentSelect(dept)}
+                          className="bg-card hover:border-primary hover:shadow-primary/5 group relative overflow-hidden rounded-xl border p-6 text-left transition-all hover:shadow-lg"
+                        >
+                          <div
+                            className="absolute inset-0 opacity-5 transition-opacity group-hover:opacity-10"
+                            style={{ backgroundColor: dept.color || '#3B82F6' }}
+                          />
+                          <div
+                            className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg font-bold text-white"
+                            style={{ backgroundColor: dept.color || '#3B82F6' }}
+                          >
+                            {dept.shortCode}
+                          </div>
+                          <h4 className="font-semibold">{dept.name}</h4>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            {dept._count?.teachers || 0} Lehrkräfte
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: Date Selection */}
+              {step === 'date' && (
+                <div className="space-y-4">
+                  <div className="mb-6 flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleBack}>
+                      Zurück
+                    </Button>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">{selectedDepartment?.name}</span>
+                  </div>
+
+                  <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie ein Datum</h3>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {availableDates?.data.map((date) => (
+                      <button
+                        key={date}
+                        onClick={() => handleDateSelect(date.split('T')[0])}
+                        className="bg-card hover:border-primary group rounded-xl border p-6 text-left transition-all hover:shadow-lg"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="bg-primary/10 text-primary flex h-14 w-14 flex-col items-center justify-center rounded-lg">
+                            <Calendar className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{formatDateDisplay(date)}</p>
+                            <p className="text-muted-foreground text-sm">Verfügbare Termine</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {availableDates?.data.length === 0 && (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12">
+                        <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
+                        <p className="text-muted-foreground mt-4">Keine verfügbaren Termine</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Time Slot Selection */}
+              {step === 'slot' && (
+                <div className="space-y-4">
+                  <div className="mb-6 flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleBack}>
+                      Zurück
+                    </Button>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">{selectedDepartment?.name}</span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      {selectedDate && formatDateDisplay(selectedDate)}
+                    </span>
+                  </div>
+
+                  <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie einen Termin</h3>
+
+                  {loadingSlots ? (
+                    <div className="space-y-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="bg-muted h-48 animate-pulse rounded-xl" />
+                      ))}
+                    </div>
+                  ) : slots?.data && slots.data.length > 0 ? (
+                    <div className="space-y-6">
+                      {Object.entries(groupSlotsByTeacher(slots.data)).map(
+                        ([teacherId, teacherSlots]) => {
+                          const teacher = teacherSlots[0]?.teacher
+                          if (!teacher) return null
+
+                          return (
+                            <Card key={teacherId}>
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center gap-4">
+                                  <div
+                                    className="flex h-12 w-12 items-center justify-center rounded-full font-medium text-white"
+                                    style={{
+                                      backgroundColor: teacher.department?.color || '#3B82F6',
+                                    }}
+                                  >
+                                    {teacher.firstName[0]}
+                                    {teacher.lastName[0]}
+                                  </div>
+                                  <div>
+                                    <CardTitle className="text-lg">
+                                      {teacher.firstName} {teacher.lastName}
+                                    </CardTitle>
+                                    <CardDescription className="flex items-center gap-2">
+                                      {teacher.room && (
+                                        <>
+                                          <MapPin className="h-3 w-3" />
+                                          Raum {teacher.room}
+                                        </>
+                                      )}
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex flex-wrap gap-2">
+                                  {teacherSlots.map((slot) => (
+                                    <button
+                                      key={slot.id}
+                                      onClick={() => handleSlotSelect(slot)}
+                                      className="bg-background hover:border-primary hover:bg-primary hover:text-primary-foreground inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all"
+                                    >
+                                      <Clock className="h-4 w-4" />
+                                      {formatTimeDisplay(slot.startTime)} -{' '}
+                                      {formatTimeDisplay(slot.endTime)}
+                                    </button>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )
+                        }
+                      )}
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12">
+                        <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
+                        <p className="text-muted-foreground mt-4">
+                          Keine verfügbaren Termine für dieses Datum
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Step 4: Booking Form */}
+              {step === 'form' && selectedSlot && (
+                <div className="space-y-6">
+                  <div className="mb-6 flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleBack}>
+                      Zurück
+                    </Button>
+                  </div>
+
+                  <Card className="border-primary/20">
+                    <CardHeader className="bg-primary/5 border-b">
+                      <CardTitle className="text-lg">Ausgewählter Termin</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex items-center gap-3">
+                          <Calendar className="text-muted-foreground h-5 w-5" />
+                          <div>
+                            <p className="text-muted-foreground text-sm">Datum</p>
+                            <p className="font-medium">
+                              {selectedDate && formatDateDisplay(selectedDate)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Clock className="text-muted-foreground h-5 w-5" />
+                          <div>
+                            <p className="text-muted-foreground text-sm">Uhrzeit</p>
+                            <p className="font-medium">
+                              {formatTimeDisplay(selectedSlot.startTime)} -{' '}
+                              {formatTimeDisplay(selectedSlot.endTime)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <User className="text-muted-foreground h-5 w-5" />
+                          <div>
+                            <p className="text-muted-foreground text-sm">Lehrkraft</p>
+                            <p className="font-medium">
+                              {selectedSlot.teacher?.firstName} {selectedSlot.teacher?.lastName}
+                            </p>
+                          </div>
+                        </div>
+                        {selectedSlot.teacher?.room && (
+                          <div className="flex items-center gap-3">
+                            <MapPin className="text-muted-foreground h-5 w-5" />
+                            <div>
+                              <p className="text-muted-foreground text-sm">Raum</p>
+                              <p className="font-medium">{selectedSlot.teacher.room}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Ihre Kontaktdaten</CardTitle>
+                      <CardDescription>
+                        Bitte geben Sie Ihre Firmendaten ein. Sie erhalten eine Bestätigung per
+                        E-Mail.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="companyName">
+                              <Building2 className="mr-2 inline h-4 w-4" />
+                              Firmenname *
+                            </Label>
+                            <Input
+                              id="companyName"
+                              placeholder="Muster GmbH"
+                              {...form.register('companyName')}
+                            />
+                            {form.formState.errors.companyName && (
+                              <p className="text-destructive text-sm">
+                                {form.formState.errors.companyName.message}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="contactName">
+                              <User className="mr-2 inline h-4 w-4" />
+                              Ansprechpartner *
+                            </Label>
+                            <Input
+                              id="contactName"
+                              placeholder="Max Mustermann"
+                              {...form.register('contactName')}
+                            />
+                            {form.formState.errors.contactName && (
+                              <p className="text-destructive text-sm">
+                                {form.formState.errors.contactName.message}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyEmail">
+                              <Mail className="mr-2 inline h-4 w-4" />
+                              E-Mail-Adresse *
+                            </Label>
+                            <Input
+                              id="companyEmail"
+                              type="email"
+                              placeholder="kontakt@firma.de"
+                              {...form.register('companyEmail')}
+                            />
+                            {form.formState.errors.companyEmail && (
+                              <p className="text-destructive text-sm">
+                                {form.formState.errors.companyEmail.message}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyPhone">
+                              <Phone className="mr-2 inline h-4 w-4" />
+                              Telefon (optional)
+                            </Label>
+                            <Input
+                              id="companyPhone"
+                              type="tel"
+                              placeholder="+49 30 12345678"
+                              {...form.register('companyPhone')}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="notes">Notizen (optional)</Label>
+                          <textarea
+                            id="notes"
+                            className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                            placeholder="z.B. Name des Auszubildenden oder besondere Anliegen"
+                            {...form.register('notes')}
+                          />
+                        </div>
+
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          size="lg"
+                          disabled={bookingMutation.isPending}
+                        >
+                          {bookingMutation.isPending
+                            ? 'Wird gebucht...'
+                            : 'Termin verbindlich buchen'}
+                        </Button>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Step 5: Confirmation */}
+              {step === 'confirmation' && confirmation && (
+                <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+                  <CardContent className="pb-8 pt-8">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+                        <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+                      </div>
+                      <h2 className="mt-4 text-2xl font-bold">Buchung erfolgreich!</h2>
+                      <p className="text-muted-foreground mt-2 max-w-md">
+                        Sie erhalten in Kürze eine Bestätigung per E-Mail mit allen Details und
+                        einem Link zur Stornierung.
+                      </p>
+
+                      <div className="bg-card mt-8 w-full max-w-md rounded-lg border p-6 text-left">
+                        <h3 className="mb-4 font-semibold">Termindetails</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="text-muted-foreground h-5 w-5" />
+                            <span>{formatDateDisplay(confirmation.timeSlot.date)}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Clock className="text-muted-foreground h-5 w-5" />
+                            <span>
+                              {formatTimeDisplay(confirmation.timeSlot.startTime)} -{' '}
+                              {formatTimeDisplay(confirmation.timeSlot.endTime)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <User className="text-muted-foreground h-5 w-5" />
+                            <span>
+                              {confirmation.teacher.firstName} {confirmation.teacher.lastName}
+                            </span>
+                          </div>
+                          {confirmation.teacher.room && (
+                            <div className="flex items-center gap-3">
+                              <MapPin className="text-muted-foreground h-5 w-5" />
+                              <span>Raum {confirmation.teacher.room}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-6 border-t pt-4">
+                          <p className="text-muted-foreground text-sm">Stornierungscode:</p>
+                          <code className="bg-muted mt-1 block rounded px-3 py-2 font-mono text-sm">
+                            {confirmation.cancellationCode}
+                          </code>
+                          <p className="text-muted-foreground mt-2 text-xs">
+                            Bewahren Sie diesen Code auf, falls Sie den Termin stornieren möchten.
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button onClick={resetBooking} className="mt-8" variant="outline">
+                        Weiteren Termin buchen
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </div>
       </main>

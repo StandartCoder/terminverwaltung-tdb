@@ -20,11 +20,11 @@ export const EMAIL_STATUS = ['PENDING', 'SENT', 'FAILED'] as const
 
 export const idSchema = z.string().cuid()
 
-export const emailSchema = z.string().email('Ungültige E-Mail-Adresse')
+export const emailSchema = z.string().email('Ungueltige E-Mail-Adresse')
 
 export const phoneSchema = z
   .string()
-  .regex(/^[+]?[(]?[0-9]{1,3}[)]?[-\s./0-9]*$/, 'Ungültige Telefonnummer')
+  .regex(/^[+]?[(]?[0-9]{1,3}[)]?[-\s./0-9]*$/, 'Ungueltige Telefonnummer')
   .optional()
   .nullable()
 
@@ -71,6 +71,7 @@ export const teacherSchema = z.object({
   room: z.string().optional().nullable(),
   isAdmin: z.boolean(),
   isActive: z.boolean(),
+  mustChangePassword: z.boolean(),
   departmentId: idSchema,
   createdAt: dateSchema,
   updatedAt: dateSchema,
@@ -100,60 +101,6 @@ export type TeacherPublic = z.infer<typeof teacherPublicSchema>
 export type CreateTeacher = z.infer<typeof createTeacherSchema>
 export type UpdateTeacher = z.infer<typeof updateTeacherSchema>
 export type TeacherLogin = z.infer<typeof teacherLoginSchema>
-
-// =============================================================================
-// COMPANY SCHEMAS
-// =============================================================================
-
-export const companySchema = z.object({
-  id: idSchema,
-  name: z.string().min(1, 'Firmenname erforderlich'),
-  email: emailSchema,
-  phone: phoneSchema,
-  contactName: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  studentCount: z.number().int().min(0),
-  createdAt: dateSchema,
-  updatedAt: dateSchema,
-})
-
-export const createCompanySchema = companySchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-})
-
-export const updateCompanySchema = createCompanySchema.partial()
-
-export type Company = z.infer<typeof companySchema>
-export type CreateCompany = z.infer<typeof createCompanySchema>
-export type UpdateCompany = z.infer<typeof updateCompanySchema>
-
-// =============================================================================
-// STUDENT SCHEMAS
-// =============================================================================
-
-export const studentSchema = z.object({
-  id: idSchema,
-  firstName: z.string().min(1, 'Vorname erforderlich'),
-  lastName: z.string().min(1, 'Nachname erforderlich'),
-  email: emailSchema.optional().nullable(),
-  class: z.string().optional().nullable(),
-  departmentId: idSchema,
-  companyId: idSchema,
-  parentId: idSchema.optional().nullable(),
-  createdAt: dateSchema,
-  updatedAt: dateSchema,
-})
-
-export const createStudentSchema = studentSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-})
-
-export type Student = z.infer<typeof studentSchema>
-export type CreateStudent = z.infer<typeof createStudentSchema>
 
 // =============================================================================
 // TIMESLOT SCHEMAS
@@ -200,7 +147,7 @@ export type CreateTimeSlot = z.infer<typeof createTimeSlotSchema>
 export type CreateBulkTimeSlots = z.infer<typeof createBulkTimeSlotsSchema>
 
 // =============================================================================
-// BOOKING SCHEMAS
+// BOOKING SCHEMAS (company info stored directly on booking)
 // =============================================================================
 
 export const bookingStatusSchema = z.enum(BOOKING_STATUS)
@@ -208,14 +155,22 @@ export const bookingStatusSchema = z.enum(BOOKING_STATUS)
 export const bookingSchema = z.object({
   id: idSchema,
   status: bookingStatusSchema,
-  notes: z.string().optional().nullable(),
   cancellationCode: z.string(),
+  // Company info stored directly
+  companyName: z.string(),
+  companyEmail: emailSchema,
+  companyPhone: phoneSchema,
+  contactName: z.string().optional().nullable(),
+  studentCount: z.number().int().min(1).default(1),
+  studentName: z.string().optional().nullable(),
+  studentClass: z.string().optional().nullable(),
+  parentName: z.string().optional().nullable(),
+  parentEmail: emailSchema.optional().nullable(),
+  notes: z.string().optional().nullable(),
   bookedAt: dateSchema,
   cancelledAt: dateSchema.optional().nullable(),
   timeSlotId: idSchema,
   teacherId: idSchema,
-  companyId: idSchema,
-  studentId: idSchema.optional().nullable(),
   createdAt: dateSchema,
   updatedAt: dateSchema,
 })
@@ -225,9 +180,13 @@ export const createBookingSchema = z.object({
   companyName: z.string().min(1, 'Firmenname erforderlich'),
   companyEmail: emailSchema,
   companyPhone: phoneSchema,
-  contactName: z.string().min(1, 'Ansprechpartner erforderlich'),
-  studentId: idSchema.optional().nullable(),
-  notes: z.string().max(500, 'Maximal 500 Zeichen').optional().nullable(),
+  contactName: z.string().optional(),
+  studentCount: z.number().int().min(1).default(1),
+  studentName: z.string().optional(),
+  studentClass: z.string().optional(),
+  parentName: z.string().optional(),
+  parentEmail: z.string().email().optional().or(z.literal('')),
+  notes: z.string().max(500, 'Maximal 500 Zeichen').optional(),
 })
 
 export const cancelBookingSchema = z.object({
@@ -267,19 +226,14 @@ export type Event = z.infer<typeof eventSchema>
 export type CreateEvent = z.infer<typeof createEventSchema>
 
 // =============================================================================
-// FILTER & QUERY SCHEMAS
+// FILTER SCHEMAS
 // =============================================================================
-
-export const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-})
 
 export const bookingFilterSchema = z.object({
   status: bookingStatusSchema.optional(),
   teacherId: idSchema.optional(),
   departmentId: idSchema.optional(),
-  companyId: idSchema.optional(),
+  companyEmail: emailSchema.optional(),
   dateFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -301,7 +255,6 @@ export const timeSlotFilterSchema = z.object({
   available: z.coerce.boolean().optional(),
 })
 
-export type Pagination = z.infer<typeof paginationSchema>
 export type BookingFilter = z.infer<typeof bookingFilterSchema>
 export type TimeSlotFilter = z.infer<typeof timeSlotFilterSchema>
 
@@ -312,22 +265,6 @@ export type TimeSlotFilter = z.infer<typeof timeSlotFilterSchema>
 export const apiErrorSchema = z.object({
   error: z.string(),
   message: z.string(),
-  details: z.record(z.unknown()).optional(),
 })
-
-export const apiSuccessSchema = <T extends z.ZodType>(dataSchema: T) =>
-  z.object({
-    success: z.literal(true),
-    data: dataSchema,
-  })
-
-export const paginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
-  z.object({
-    items: z.array(itemSchema),
-    total: z.number(),
-    page: z.number(),
-    limit: z.number(),
-    totalPages: z.number(),
-  })
 
 export type ApiError = z.infer<typeof apiErrorSchema>

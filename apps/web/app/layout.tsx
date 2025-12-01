@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/toaster'
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'Terminverwaltung TdB',
-  description: 'Professional appointment management system',
+  title: 'Tag der Betriebe – OSZ-Teltow',
+  description: 'Terminverwaltung für den Tag der Betriebe am OSZ-Teltow',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

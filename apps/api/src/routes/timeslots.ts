@@ -39,7 +39,7 @@ timeslotsRouter.get('/', zValidator('query', querySchema), async (c) => {
         },
       },
       booking: {
-        select: { id: true, companyId: true, status: true },
+        select: { id: true, companyName: true, status: true },
       },
     },
   })
@@ -100,7 +100,9 @@ timeslotsRouter.get('/:id', async (c) => {
           department: true,
         },
       },
-      booking: { include: { company: true, student: true } },
+      booking: {
+        select: { id: true, companyName: true, contactName: true, status: true },
+      },
     },
   })
 

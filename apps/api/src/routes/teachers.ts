@@ -52,7 +52,9 @@ teachersRouter.get('/:id', async (c) => {
       ...teacherSelectPublic,
       timeSlots: {
         orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-        include: { booking: { include: { company: true } } },
+        include: {
+          booking: { select: { id: true, companyName: true, contactName: true, status: true } },
+        },
       },
     },
   })
@@ -87,7 +89,7 @@ teachersRouter.get('/:id/timeslots', async (c) => {
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     include: {
       booking: {
-        include: { company: true, student: true },
+        select: { id: true, companyName: true, contactName: true, status: true },
       },
     },
   })
@@ -114,8 +116,6 @@ teachersRouter.get('/:id/bookings', async (c) => {
     },
     orderBy: { timeSlot: { date: 'asc' } },
     include: {
-      company: true,
-      student: true,
       timeSlot: true,
     },
   })

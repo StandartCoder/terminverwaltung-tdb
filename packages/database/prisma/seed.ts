@@ -51,7 +51,7 @@ async function main() {
     prisma.department.upsert({
       where: { shortCode: 'AN' },
       update: {},
-      create: { 
+      create: {
         name: 'Anlagenmechaniker/in',
         shortCode: 'AN',
         color: '#8B5CF6',
@@ -63,32 +63,30 @@ async function main() {
       create: {
         name: 'Wasserbauer/in',
         shortCode: 'WB',
-        color: '#1479b8ff',
+        color: '#1479b8',
       },
     }),
   ])
-
   console.log(`Created ${departments.length} departments`)
 
   // Create Admin (no department - admins are system-wide)
-  const adminPassword = hashPassword('admin123')
   const admin = await prisma.teacher.upsert({
     where: { email: 'admin@osz-teltow.de' },
     update: {},
     create: {
       email: 'admin@osz-teltow.de',
-      passwordHash: adminPassword,
+      passwordHash: hashPassword('admin123'),
       firstName: 'Admin',
       lastName: 'User',
       isAdmin: true,
-      mustChangePassword: true,
+      mustChangePassword: false,
     },
   })
   console.log(`Created admin: ${admin.email}`)
 
   // Create Default Settings
   const settings = [
-    { key: 'school_name', value: 'OSZ Teltow', description: 'Name der Schule' },
+    { key: 'school_name', value: 'OSZ-Teltow', description: 'Name der Schule' },
     { key: 'school_email', value: 'info@osz-teltow.de', description: 'E-Mail der Schule' },
     { key: 'booking_enabled', value: 'true', description: 'Buchungen aktiviert' },
     { key: 'email_notifications', value: 'true', description: 'E-Mail Benachrichtigungen aktiv' },

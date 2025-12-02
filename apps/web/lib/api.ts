@@ -178,6 +178,14 @@ export const api = {
       })
       return handleResponse<{ message: string }>(res)
     },
+    rebook: async (cancellationCode: string, newTimeSlotId: string) => {
+      const res = await fetch(`${API_BASE}/api/bookings/rebook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancellationCode, newTimeSlotId }),
+      })
+      return handleResponse<{ data: BookingConfirmation }>(res)
+    },
     check: async (code: string) => {
       const res = await fetch(`${API_BASE}/api/bookings/check/${code}`)
       return handleResponse<{ data: BookingDetails }>(res)

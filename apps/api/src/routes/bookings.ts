@@ -3,7 +3,11 @@ import { db, Prisma } from '@terminverwaltung/database'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
-import { sendBookingConfirmation, sendBookingCancellation } from '../lib/email'
+import {
+  sendBookingConfirmation,
+  sendBookingCancellation,
+  sendRebookConfirmation,
+} from '../lib/email'
 import { generateCancellationCode } from '../lib/utils'
 
 export const bookingsRouter = new Hono()
@@ -272,4 +276,111 @@ bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema
   }
 
   return c.json({ data: updated })
+})
+
+// Rebook: change to a different timeslot (atomic operation)
+const rebookSchema = z.object({
+  cancellationCode: z.string().min(1, 'Stornierungscode erforderlich'),
+  newTimeSlotId: z.string().cuid('Ungültige Zeitslot-ID'),
+})
+
+bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
+  const { cancellationCode, newTimeSlotId } = c.req.valid('json')
+
+  const result = await db.$transaction(
+    async (tx) => {
+      // Find existing booking
+      const existingBooking = await tx.booking.findUnique({
+        where: { cancellationCode },
+        include: {
+          teacher: { include: { department: true } },
+          timeSlot: true,
+        },
+      })
+
+      if (!existingBooking) {
+        throw new Error('NOT_FOUND:Buchung nicht gefunden')
+      }
+
+      if (existingBooking.status === 'CANCELLED') {
+        throw new Error('ALREADY_CANCELLED:Diese Buchung wurde bereits storniert')
+      }
+
+      // Check new timeslot availability
+      const newTimeSlot = await tx.timeSlot.findUnique({
+        where: { id: newTimeSlotId },
+        include: {
+          teacher: { include: { department: true } },
+          booking: true,
+        },
+      })
+
+      if (!newTimeSlot) {
+        throw new Error('NOT_FOUND:Neuer Zeitslot nicht gefunden')
+      }
+
+      if (newTimeSlot.status !== 'AVAILABLE' || newTimeSlot.booking) {
+        throw new Error('SLOT_ALREADY_BOOKED:Der neue Termin ist bereits vergeben')
+      }
+
+      // Same slot check
+      if (existingBooking.timeSlotId === newTimeSlotId) {
+        throw new Error('SAME_SLOT:Sie haben bereits diesen Termin gebucht')
+      }
+
+      // Release old timeslot
+      await tx.timeSlot.update({
+        where: { id: existingBooking.timeSlotId },
+        data: { status: 'AVAILABLE' },
+      })
+
+      // Book new timeslot
+      await tx.timeSlot.update({
+        where: { id: newTimeSlotId },
+        data: { status: 'BOOKED' },
+      })
+
+      // Update booking with new timeslot and teacher
+      const updatedBooking = await tx.booking.update({
+        where: { id: existingBooking.id },
+        data: {
+          timeSlotId: newTimeSlotId,
+          teacherId: newTimeSlot.teacherId,
+          cancellationCode: generateCancellationCode(), // Generate new code for security
+        },
+        include: {
+          teacher: { include: { department: true } },
+          timeSlot: true,
+        },
+      })
+
+      return { updatedBooking, oldTimeSlot: existingBooking.timeSlot }
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  )
+
+  // Send rebook confirmation email
+  try {
+    await sendRebookConfirmation(result.updatedBooking, result.oldTimeSlot)
+  } catch (emailError) {
+    console.error('Failed to send rebook confirmation email:', emailError)
+  }
+
+  return c.json({
+    data: {
+      id: result.updatedBooking.id,
+      status: result.updatedBooking.status,
+      bookedAt: result.updatedBooking.bookedAt,
+      cancellationCode: result.updatedBooking.cancellationCode,
+      timeSlot: result.updatedBooking.timeSlot,
+      teacher: {
+        firstName: result.updatedBooking.teacher.firstName,
+        lastName: result.updatedBooking.teacher.lastName,
+        room: result.updatedBooking.teacher.room,
+        department: result.updatedBooking.teacher.department,
+      },
+    },
+  })
 })

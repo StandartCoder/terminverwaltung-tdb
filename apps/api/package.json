@@ -16,18 +16,18 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.4.1",
+    "@terminverwaltung/auth": "workspace:*",
     "@terminverwaltung/database": "workspace:*",
+    "@terminverwaltung/email": "workspace:*",
     "@terminverwaltung/shared": "workspace:*",
     "@terminverwaltung/validators": "workspace:*",
     "hono": "^4.6.13",
-    "nodemailer": "^6.9.16",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@terminverwaltung/eslint-config": "workspace:*",
     "@terminverwaltung/typescript-config": "workspace:*",
     "@types/node": "^22.10.1",
-    "@types/nodemailer": "^6.4.17",
     "dotenv-cli": "^7.4.4",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

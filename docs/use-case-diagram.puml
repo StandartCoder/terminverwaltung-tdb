@@ -1,0 +1,66 @@
+@startuml Terminverwaltung Use Case Diagram
+
+title Terminverwaltung - Tag der Betriebe
+
+left to right direction
+skinparam actorStyle awesome
+
+actor "Betrieb/Eltern" as Besucher #LightBlue
+actor "Lehrkraft" as Lehrer #LightGreen
+actor "Administrator" as Admin #LightCoral
+actor "E-Mail System" as Mail #LightGray
+
+Lehrer <|-- Admin
+
+rectangle "Terminverwaltung" {
+
+    usecase "Termin buchen" as UC_Buchen
+    usecase "Termin stornieren" as UC_Stornieren
+    
+    usecase "Fachbereich/Datum/Slot wählen" as UC_Auswahl
+    usecase "Kontaktdaten eingeben" as UC_Kontakt
+    usecase "Stornierungscode prüfen" as UC_CodePruefen
+    usecase "Bestätigung senden" as UC_Bestaetigung
+    
+    usecase "Schülerdaten angeben" as UC_Schueler
+    usecase "Umbuchen" as UC_Umbuchen
+
+    usecase "Anmelden" as UC_Login
+    usecase "Termine & Slots verwalten" as UC_Verwaltung
+
+    usecase "Stammdaten verwalten\n(Fachbereiche, Lehrkräfte,\nVeranstaltungen)" as UC_Stammdaten
+    usecase "Daten exportieren" as UC_Export
+}
+
+Besucher --> UC_Buchen
+Besucher --> UC_Stornieren
+
+UC_Buchen ..> UC_Auswahl : <<include>>
+UC_Buchen ..> UC_Kontakt : <<include>>
+UC_Buchen ..> UC_Bestaetigung : <<include>>
+
+UC_Schueler ..> UC_Buchen : <<extend>>
+
+UC_Stornieren ..> UC_CodePruefen : <<include>>
+UC_Stornieren ..> UC_Bestaetigung : <<include>>
+
+UC_Umbuchen ..> UC_Stornieren : <<extend>>
+
+Lehrer --> UC_Login
+Lehrer --> UC_Verwaltung
+
+Admin --> UC_Stammdaten
+Admin --> UC_Export
+
+UC_Bestaetigung --> Mail
+
+note right of Besucher
+  Keine Registrierung
+  Stornierung per Code
+end note
+
+note right of Admin
+  Erbt Lehrer-Funktionen
+end note
+
+@enduml

@@ -1,5 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
+import { hashPassword, verifyPassword } from '@terminverwaltung/auth'
 import { db } from '@terminverwaltung/database'
+import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import {
   teacherLoginSchema,
   createTeacherSchema,
@@ -8,8 +10,6 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
-import { hashPassword, verifyPassword } from '../lib/utils'
 
 export const teachersRouter = new Hono()
 

@@ -1,20 +1,12 @@
 import type { Booking, Teacher, TimeSlot } from '@terminverwaltung/database'
-import { createTransport } from 'nodemailer'
-import { formatDate, formatTime } from './utils'
+import { formatDate, formatTime } from '@terminverwaltung/shared'
+import { getTransporter, getFromAddress, getPublicUrl } from './transporter'
 
-const transporter = createTransport({
-  host: process.env.SMTP_HOST || 'localhost',
-  port: Number(process.env.SMTP_PORT) || 1025,
-  secure: false,
-})
-
-// Booking now contains company info directly (no separate Company entity)
-type BookingWithRelations = Booking & {
+export type BookingWithRelations = Booking & {
   teacher: Teacher & { department: { name: string; shortCode: string } | null }
   timeSlot: TimeSlot
 }
 
-// Helper to check if parent email should receive notifications
 function shouldNotifyParent(booking: BookingWithRelations): boolean {
   return !!(booking.parentEmail && booking.parentEmail.trim() !== '')
 }
@@ -22,7 +14,7 @@ function shouldNotifyParent(booking: BookingWithRelations): boolean {
 export async function sendBookingConfirmation(booking: BookingWithRelations): Promise<void> {
   const { teacher, timeSlot, cancellationCode, companyName, companyEmail, contactName } = booking
 
-  const cancellationUrl = `${process.env.PUBLIC_URL || 'http://localhost:3000'}/stornieren?code=${cancellationCode}`
+  const cancellationUrl = `${getPublicUrl()}/stornieren?code=${cancellationCode}`
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -75,14 +67,13 @@ export async function sendBookingConfirmation(booking: BookingWithRelations): Pr
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: companyEmail,
     subject: `Terminbestätigung - Tag der Betriebe - ${formatDate(timeSlot.date)}`,
     html,
   })
 
-  // Send parent notification if parent email is provided
   if (shouldNotifyParent(booking)) {
     await sendParentBookingNotification(booking)
   }
@@ -151,8 +142,8 @@ async function sendParentBookingNotification(booking: BookingWithRelations): Pro
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: parentEmail!,
     subject: `Terminbenachrichtigung - Tag der Betriebe - ${formatDate(timeSlot.date)}`,
     html,
@@ -191,7 +182,7 @@ export async function sendBookingCancellation(booking: BookingWithRelations): Pr
       </div>
       
       <p>Sie können jederzeit einen neuen Termin buchen unter:<br>
-      <a href="${process.env.PUBLIC_URL || 'http://localhost:3000'}" style="color: #3182ce;">Tag der Betriebe - Terminbuchung</a></p>
+      <a href="${getPublicUrl()}" style="color: #3182ce;">Tag der Betriebe - Terminbuchung</a></p>
       
       <p style="color: #718096; font-size: 14px;">
         OSZ Teltow
@@ -199,14 +190,13 @@ export async function sendBookingCancellation(booking: BookingWithRelations): Pr
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: companyEmail,
     subject: `Stornierungsbestätigung - Tag der Betriebe`,
     html,
   })
 
-  // Send parent notification if parent email is provided
   if (shouldNotifyParent(booking)) {
     await sendParentCancellationNotification(booking)
   }
@@ -259,8 +249,8 @@ async function sendParentCancellationNotification(booking: BookingWithRelations)
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: parentEmail!,
     subject: `Terminstornierung - Tag der Betriebe`,
     html,
@@ -273,7 +263,7 @@ export async function sendRebookConfirmation(
 ): Promise<void> {
   const { teacher, timeSlot, cancellationCode, companyName, companyEmail, contactName } = booking
 
-  const manageUrl = `${process.env.PUBLIC_URL || 'http://localhost:3000'}/stornieren?code=${cancellationCode}`
+  const manageUrl = `${getPublicUrl()}/stornieren?code=${cancellationCode}`
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -343,14 +333,13 @@ export async function sendRebookConfirmation(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: companyEmail,
     subject: `Umbuchungsbestätigung - Tag der Betriebe - ${formatDate(timeSlot.date)}`,
     html,
   })
 
-  // Send parent notification if parent email is provided
   if (shouldNotifyParent(booking)) {
     await sendParentRebookNotification(booking, oldTimeSlot)
   }
@@ -435,8 +424,8 @@ async function sendParentRebookNotification(
     </div>
   `
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@osz-teltow.de',
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: parentEmail!,
     subject: `Terminänderung - Tag der Betriebe - ${formatDate(timeSlot.date)}`,
     html,

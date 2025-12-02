@@ -44,9 +44,15 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.4.1
         version: 0.4.3(hono@4.10.7)(zod@3.25.76)
+      '@terminverwaltung/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@terminverwaltung/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@terminverwaltung/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@terminverwaltung/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -56,9 +62,6 @@ importers:
       hono:
         specifier: ^4.6.13
         version: 4.10.7
-      nodemailer:
-        specifier: ^6.9.16
-        version: 6.10.1
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -72,9 +75,6 @@ importers:
       '@types/node':
         specifier: ^22.10.1
         version: 22.19.1
-      '@types/nodemailer':
-        specifier: ^6.4.17
-        version: 6.4.21
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
@@ -170,6 +170,18 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.18(tsx@4.21.0)(yaml@2.8.2))
 
+  packages/auth:
+    devDependencies:
+      '@terminverwaltung/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@terminverwaltung/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/database:
     dependencies:
       '@prisma/client':
@@ -191,6 +203,31 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
+
+  packages/email:
+    dependencies:
+      '@terminverwaltung/database':
+        specifier: workspace:*
+        version: link:../database
+      '@terminverwaltung/shared':
+        specifier: workspace:*
+        version: link:../shared
+      nodemailer:
+        specifier: ^6.9.16
+        version: 6.10.1
+    devDependencies:
+      '@terminverwaltung/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@terminverwaltung/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/nodemailer':
+        specifier: ^6.4.17
+        version: 6.4.21
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/eslint-config:
     devDependencies:

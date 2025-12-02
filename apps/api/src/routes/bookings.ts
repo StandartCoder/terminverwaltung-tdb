@@ -1,5 +1,12 @@
 import { zValidator } from '@hono/zod-validator'
+import { generateCancellationCode } from '@terminverwaltung/auth'
 import { db, Prisma } from '@terminverwaltung/database'
+import {
+  sendBookingConfirmation,
+  sendBookingCancellation,
+  sendRebookConfirmation,
+} from '@terminverwaltung/email'
+import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import {
   createBookingSchema,
   cancelBookingSchema,
@@ -8,13 +15,6 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
-import {
-  sendBookingConfirmation,
-  sendBookingCancellation,
-  sendRebookConfirmation,
-} from '../lib/email'
-import { generateCancellationCode } from '../lib/utils'
 
 export const bookingsRouter = new Hono()
 

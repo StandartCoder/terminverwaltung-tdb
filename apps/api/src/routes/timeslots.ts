@@ -1,6 +1,12 @@
 import { zValidator } from '@hono/zod-validator'
 import { db } from '@terminverwaltung/database'
 import {
+  HTTP_STATUS,
+  ERROR_CODES,
+  parseTimeString,
+  parseDateString,
+} from '@terminverwaltung/shared'
+import {
   timeSlotFilterSchema,
   createTimeSlotSchema as baseCreateTimeSlotSchema,
   createBulkTimeSlotsSchema as baseCreateBulkTimeSlotsSchema,
@@ -8,8 +14,6 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
-import { parseTimeString, parseDateString } from '../lib/utils'
 
 export const timeslotsRouter = new Hono()
 

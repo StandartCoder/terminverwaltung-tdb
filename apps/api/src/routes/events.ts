@@ -1,8 +1,8 @@
 import { zValidator } from '@hono/zod-validator'
 import { db } from '@terminverwaltung/database'
+import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
 
 export const eventsRouter = new Hono()
 

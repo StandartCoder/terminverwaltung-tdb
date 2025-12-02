@@ -1,10 +1,9 @@
 'use client'
 
+import { AUTH_STORAGE_KEY } from '@terminverwaltung/shared'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Teacher } from './api'
-
-const AUTH_STORAGE_KEY = 'teacher_session'
 
 export interface AuthState {
   teacher: Teacher | null

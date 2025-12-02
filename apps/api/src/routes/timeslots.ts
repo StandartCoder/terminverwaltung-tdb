@@ -1,5 +1,11 @@
 import { zValidator } from '@hono/zod-validator'
 import { db } from '@terminverwaltung/database'
+import {
+  timeSlotFilterSchema,
+  createTimeSlotSchema as baseCreateTimeSlotSchema,
+  createBulkTimeSlotsSchema as baseCreateBulkTimeSlotsSchema,
+  idSchema,
+} from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
@@ -7,17 +13,8 @@ import { parseTimeString, parseDateString } from '../lib/utils'
 
 export const timeslotsRouter = new Hono()
 
-const querySchema = z.object({
-  teacherId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  available: z.coerce.boolean().optional(),
-})
-
-timeslotsRouter.get('/', zValidator('query', querySchema), async (c) => {
+// Use the filter schema from validators for query params
+timeslotsRouter.get('/', zValidator('query', timeSlotFilterSchema), async (c) => {
   const { teacherId, departmentId, date, available } = c.req.valid('query')
 
   const timeSlots = await db.timeSlot.findMany({
@@ -47,7 +44,7 @@ timeslotsRouter.get('/', zValidator('query', querySchema), async (c) => {
   return c.json({ data: timeSlots })
 })
 
-timeslotsRouter.get('/available', zValidator('query', querySchema), async (c) => {
+timeslotsRouter.get('/available', zValidator('query', timeSlotFilterSchema), async (c) => {
   const { teacherId, departmentId, date } = c.req.valid('query')
 
   const timeSlots = await db.timeSlot.findMany({
@@ -116,11 +113,9 @@ timeslotsRouter.get('/:id', async (c) => {
   return c.json({ data: timeSlot })
 })
 
-const createTimeSlotSchema = z.object({
-  teacherId: z.string().cuid(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
-  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format: HH:MM'),
-  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format: HH:MM'),
+// Extend base schema to make teacherId required for this endpoint
+const createTimeSlotSchema = baseCreateTimeSlotSchema.extend({
+  teacherId: idSchema,
 })
 
 timeslotsRouter.post('/', zValidator('json', createTimeSlotSchema), async (c) => {
@@ -169,15 +164,9 @@ timeslotsRouter.post('/', zValidator('json', createTimeSlotSchema), async (c) =>
   return c.json({ data: timeSlot }, HTTP_STATUS.CREATED)
 })
 
-const createBulkSchema = z.object({
-  teacherId: z.string().cuid(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  slots: z.array(
-    z.object({
-      startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-      endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-    })
-  ),
+// Extend base bulk schema to make teacherId required
+const createBulkSchema = baseCreateBulkTimeSlotsSchema.extend({
+  teacherId: idSchema,
 })
 
 timeslotsRouter.post('/bulk', zValidator('json', createBulkSchema), async (c) => {

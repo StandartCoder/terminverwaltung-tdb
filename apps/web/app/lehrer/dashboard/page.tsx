@@ -224,7 +224,8 @@ function OverviewTab({
   }
   bookings: Booking[]
 }) {
-  const now = new Date()
+  // Use a stable time reference that updates on each render but doesn't cause infinite loops
+  const now = useMemo(() => new Date(), [])
 
   const { currentAppointment, nextAppointment, todayBookings, tomorrowBookings } = useMemo(() => {
     const sorted = [...bookings].sort((a, b) => {

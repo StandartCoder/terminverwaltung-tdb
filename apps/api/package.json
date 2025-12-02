@@ -17,6 +17,7 @@
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.4.1",
     "@terminverwaltung/database": "workspace:*",
+    "@terminverwaltung/shared": "workspace:*",
     "@terminverwaltung/validators": "workspace:*",
     "hono": "^4.6.13",
     "nodemailer": "^6.9.16",

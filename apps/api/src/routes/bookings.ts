@@ -1,5 +1,11 @@
 import { zValidator } from '@hono/zod-validator'
 import { db, Prisma } from '@terminverwaltung/database'
+import {
+  createBookingSchema,
+  cancelBookingSchema,
+  bookingStatusSchema,
+  idSchema,
+} from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
@@ -11,26 +17,6 @@ import {
 import { generateCancellationCode } from '../lib/utils'
 
 export const bookingsRouter = new Hono()
-
-// Schema for creating a booking - company info entered at booking time (no predefined companies)
-const createBookingSchema = z.object({
-  timeSlotId: z.string().cuid(),
-  // Company info - required
-  companyName: z.string().min(1, 'Firmenname erforderlich'),
-  companyEmail: z.string().email('Ungültige E-Mail'),
-  companyPhone: z.string().optional(),
-  contactName: z.string().optional(),
-  // For large companies (>5 students) handling
-  studentCount: z.number().int().min(1).default(1),
-  // Optional student info
-  studentName: z.string().optional(),
-  studentClass: z.string().optional(),
-  // Optional parent info (for minors)
-  parentName: z.string().optional(),
-  parentEmail: z.string().email().optional().or(z.literal('')),
-  // Notes
-  notes: z.string().max(500).optional(),
-})
 
 bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
   const body = c.req.valid('json')
@@ -112,10 +98,6 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
     },
     HTTP_STATUS.CREATED
   )
-})
-
-const cancelBookingSchema = z.object({
-  cancellationCode: z.string().min(1, 'Stornierungscode erforderlich'),
 })
 
 bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c) => {
@@ -245,7 +227,7 @@ bookingsRouter.get('/:id', async (c) => {
 })
 
 const updateBookingStatusSchema = z.object({
-  status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']),
+  status: bookingStatusSchema,
 })
 
 bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema), async (c) => {
@@ -281,7 +263,7 @@ bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema
 // Rebook: change to a different timeslot (atomic operation)
 const rebookSchema = z.object({
   cancellationCode: z.string().min(1, 'Stornierungscode erforderlich'),
-  newTimeSlotId: z.string().cuid('Ungültige Zeitslot-ID'),
+  newTimeSlotId: idSchema,
 })
 
 bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {

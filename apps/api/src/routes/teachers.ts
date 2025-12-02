@@ -1,6 +1,11 @@
 import { zValidator } from '@hono/zod-validator'
 import { db } from '@terminverwaltung/database'
-import { teacherLoginSchema } from '@terminverwaltung/validators'
+import {
+  teacherLoginSchema,
+  createTeacherSchema,
+  updateTeacherSchema,
+  idSchema,
+} from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { HTTP_STATUS, ERROR_CODES } from '../lib/constants'
@@ -24,7 +29,7 @@ const teacherSelectPublic = {
 }
 
 const querySchema = z.object({
-  departmentId: z.string().cuid().optional(),
+  departmentId: idSchema.optional(),
   active: z.coerce.boolean().optional(),
 })
 
@@ -121,16 +126,6 @@ teachersRouter.get('/:id/bookings', async (c) => {
   })
 
   return c.json({ data: bookings })
-})
-
-const createTeacherSchema = z.object({
-  email: z.string().email('Ungültige E-Mail'),
-  password: z.string().min(6, 'Mindestens 6 Zeichen'),
-  firstName: z.string().min(1, 'Vorname erforderlich'),
-  lastName: z.string().min(1, 'Nachname erforderlich'),
-  room: z.string().optional(),
-  departmentId: z.string().cuid().optional(),
-  isAdmin: z.boolean().optional().default(false),
 })
 
 teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
@@ -258,17 +253,12 @@ teachersRouter.post('/:id/set-password', zValidator('json', setPasswordSchema), 
   return c.json({ message: 'Passwort erfolgreich gesetzt' })
 })
 
-const updateTeacherSchema = z.object({
-  email: z.string().email().optional(),
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  room: z.string().optional().nullable(),
-  departmentId: z.string().cuid().optional(),
+// Extend base schema with isActive for PATCH endpoint
+const patchTeacherSchema = updateTeacherSchema.extend({
   isActive: z.boolean().optional(),
-  isAdmin: z.boolean().optional(),
 })
 
-teachersRouter.patch('/:id', zValidator('json', updateTeacherSchema), async (c) => {
+teachersRouter.patch('/:id', zValidator('json', patchTeacherSchema), async (c) => {
   const id = c.req.param('id')
   const body = c.req.valid('json')
 

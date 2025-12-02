@@ -79,7 +79,7 @@ async function main() {
       firstName: 'Admin',
       lastName: 'User',
       isAdmin: true,
-      mustChangePassword: false,
+      mustChangePassword: true,
     },
   })
   console.log(`Created admin: ${admin.email}`)

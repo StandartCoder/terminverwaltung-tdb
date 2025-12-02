@@ -34,8 +34,21 @@ export function EventsManagement({ events }: Props) {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['events'] })
 
+  const toISOOrUndefined = (val: string | undefined): string | undefined =>
+    val ? new Date(val).toISOString() : undefined
+
   const createMutation = useMutation({
-    mutationFn: () => api.events.create(formData),
+    mutationFn: () =>
+      api.events.create({
+        name: formData.name,
+        description: formData.description || undefined,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        bookingOpenAt: toISOOrUndefined(formData.bookingOpenAt),
+        bookingCloseAt: toISOOrUndefined(formData.bookingCloseAt),
+        defaultSlotLength: formData.defaultSlotLength,
+        isActive: formData.isActive,
+      }),
     onSuccess: () => {
       refresh()
       setIsCreating(false)
@@ -58,7 +71,11 @@ export function EventsManagement({ events }: Props) {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CreateEventData> }) =>
-      api.events.update(id, data),
+      api.events.update(id, {
+        ...data,
+        bookingOpenAt: toISOOrUndefined(data.bookingOpenAt),
+        bookingCloseAt: toISOOrUndefined(data.bookingCloseAt),
+      }),
     onSuccess: () => {
       refresh()
       setEditingId(null)
@@ -183,12 +200,7 @@ export function EventsManagement({ events }: Props) {
                 <Input
                   type="datetime-local"
                   value={formData.bookingOpenAt}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bookingOpenAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, bookingOpenAt: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -196,12 +208,7 @@ export function EventsManagement({ events }: Props) {
                 <Input
                   type="datetime-local"
                   value={formData.bookingCloseAt}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bookingCloseAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, bookingCloseAt: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -291,14 +298,9 @@ export function EventsManagement({ events }: Props) {
                       <Label>Buchung öffnet</Label>
                       <Input
                         type="datetime-local"
-                        value={formData.bookingOpenAt?.slice(0, 16) || ''}
+                        value={formData.bookingOpenAt}
                         onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            bookingOpenAt: e.target.value
-                              ? new Date(e.target.value).toISOString()
-                              : '',
-                          })
+                          setFormData({ ...formData, bookingOpenAt: e.target.value })
                         }
                       />
                     </div>
@@ -306,14 +308,9 @@ export function EventsManagement({ events }: Props) {
                       <Label>Buchung schließt</Label>
                       <Input
                         type="datetime-local"
-                        value={formData.bookingCloseAt?.slice(0, 16) || ''}
+                        value={formData.bookingCloseAt}
                         onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            bookingCloseAt: e.target.value
-                              ? new Date(e.target.value).toISOString()
-                              : '',
-                          })
+                          setFormData({ ...formData, bookingCloseAt: e.target.value })
                         }
                       />
                     </div>

@@ -1,21 +1,27 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { format, isToday, isTomorrow, parseISO, isAfter, isBefore } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   AlertCircle,
   Building2,
   Calendar,
+  CalendarClock,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Download,
+  FileText,
+  Phone,
   Plus,
+  Printer,
   Save,
   TrendingUp,
+  User,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -89,6 +95,7 @@ export default function DashboardPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teacher-slots'] })
+      queryClient.invalidateQueries({ queryKey: ['teacher-bookings'] })
       toast({ title: 'Erstellt', description: 'Zeitslot wurde erstellt.' })
       setNewSlotDate('')
     },
@@ -145,7 +152,11 @@ export default function DashboardPage() {
       <main className="pl-64">
         <div className="p-8">
           {activeTab === 'overview' && (
-            <OverviewTab teacher={teacher} statistics={statistics?.data} />
+            <OverviewTab
+              teacher={teacher}
+              statistics={statistics?.data}
+              bookings={confirmedBookings}
+            />
           )}
 
           {activeTab === 'appointments' && (
@@ -202,6 +213,7 @@ export default function DashboardPage() {
 function OverviewTab({
   teacher,
   statistics,
+  bookings,
 }: {
   teacher: Teacher
   statistics?: {
@@ -210,14 +222,351 @@ function OverviewTab({
     teachers: number
     companies: number
   }
+  bookings: Booking[]
 }) {
+  const now = new Date()
+
+  const { currentAppointment, nextAppointment, todayBookings, tomorrowBookings } = useMemo(() => {
+    const sorted = [...bookings].sort((a, b) => {
+      const dateA = new Date(
+        `${a.timeSlot.date.split('T')[0]}T${a.timeSlot.startTime.split('T')[1] || '00:00:00'}`
+      )
+      const dateB = new Date(
+        `${b.timeSlot.date.split('T')[0]}T${b.timeSlot.startTime.split('T')[1] || '00:00:00'}`
+      )
+      return dateA.getTime() - dateB.getTime()
+    })
+
+    let current: Booking | null = null
+    let next: Booking | null = null
+    const today: Booking[] = []
+    const tomorrow: Booking[] = []
+
+    for (const booking of sorted) {
+      const slotDate = parseISO(booking.timeSlot.date)
+      const startTime = parseISO(booking.timeSlot.startTime)
+      const endTime = parseISO(booking.timeSlot.endTime)
+
+      const slotStart = new Date(slotDate)
+      slotStart.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0)
+
+      const slotEnd = new Date(slotDate)
+      slotEnd.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0)
+
+      if (isToday(slotDate)) {
+        today.push(booking)
+        if (!current && isAfter(now, slotStart) && isBefore(now, slotEnd)) {
+          current = booking
+        } else if (!next && isAfter(slotStart, now)) {
+          next = booking
+        }
+      } else if (isTomorrow(slotDate)) {
+        tomorrow.push(booking)
+        if (!next) {
+          next = booking
+        }
+      } else if (isAfter(slotDate, now) && !next) {
+        next = booking
+      }
+    }
+
+    return {
+      currentAppointment: current,
+      nextAppointment: next,
+      todayBookings: today,
+      tomorrowBookings: tomorrow,
+    }
+  }, [bookings, now])
+
+  const formatTime = (t: string) => format(parseISO(t), 'HH:mm')
+  const formatDateFull = (d: string) => format(parseISO(d), 'EEEE, d. MMMM', { locale: de })
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Willkommen, {teacher.firstName}!</h1>
-        <p className="text-muted-foreground">Hier ist Ihre Übersicht für den Tag der Betriebe</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Guten {now.getHours() < 12 ? 'Morgen' : now.getHours() < 18 ? 'Tag' : 'Abend'},{' '}
+            {teacher.firstName}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {format(now, 'EEEE, d. MMMM yyyy', { locale: de })}
+          </p>
+        </div>
       </div>
 
+      {/* Current & Next Appointment - Featured Section */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Current Appointment */}
+        <Card
+          className={`relative overflow-hidden ${currentAppointment ? 'border-green-500 bg-gradient-to-br from-green-500/10 via-green-500/5 to-transparent' : 'border-dashed'}`}
+        >
+          <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-green-500/10" />
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${currentAppointment ? 'bg-green-500 text-white' : 'bg-muted'}`}
+              >
+                <Clock className="h-4 w-4" />
+              </div>
+              <CardTitle className="text-lg">Aktueller Termin</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {currentAppointment ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/30">
+                    <Building2 className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xl font-bold">{currentAppointment.companyName}</p>
+                    <p className="text-muted-foreground">{currentAppointment.contactName}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="text-muted-foreground h-4 w-4" />
+                    <span className="font-medium">
+                      {formatTime(currentAppointment.timeSlot.startTime)} -{' '}
+                      {formatTime(currentAppointment.timeSlot.endTime)}
+                    </span>
+                  </div>
+                  {currentAppointment.studentName && (
+                    <div className="flex items-center gap-2">
+                      <User className="text-muted-foreground h-4 w-4" />
+                      <span>
+                        {currentAppointment.studentName}
+                        {currentAppointment.studentClass && ` (${currentAppointment.studentClass})`}
+                      </span>
+                    </div>
+                  )}
+                  {currentAppointment.companyPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="text-muted-foreground h-4 w-4" />
+                      <span>{currentAppointment.companyPhone}</span>
+                    </div>
+                  )}
+                </div>
+                {currentAppointment.notes && (
+                  <p className="bg-muted/50 rounded-lg p-3 text-sm">{currentAppointment.notes}</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+                  <CalendarClock className="text-muted-foreground h-6 w-6" />
+                </div>
+                <p className="text-muted-foreground">Kein laufender Termin</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Next Appointment */}
+        <Card
+          className={`relative overflow-hidden ${nextAppointment ? 'border-blue-500 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent' : 'border-dashed'}`}
+        >
+          <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-blue-500/10" />
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${nextAppointment ? 'bg-blue-500 text-white' : 'bg-muted'}`}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </div>
+              <CardTitle className="text-lg">Nächster Termin</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {nextAppointment ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-500 text-white shadow-lg shadow-blue-500/30">
+                    <Building2 className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xl font-bold">{nextAppointment.companyName}</p>
+                    <p className="text-muted-foreground">{nextAppointment.contactName}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="text-muted-foreground h-4 w-4" />
+                    <span>{formatDateFull(nextAppointment.timeSlot.date)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="text-muted-foreground h-4 w-4" />
+                    <span className="font-medium">
+                      {formatTime(nextAppointment.timeSlot.startTime)} -{' '}
+                      {formatTime(nextAppointment.timeSlot.endTime)}
+                    </span>
+                  </div>
+                </div>
+                {nextAppointment.studentName && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="text-muted-foreground h-4 w-4" />
+                    <span>
+                      {nextAppointment.studentName}
+                      {nextAppointment.studentClass && ` (${nextAppointment.studentClass})`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+                  <Calendar className="text-muted-foreground h-6 w-6" />
+                </div>
+                <p className="text-muted-foreground">Keine weiteren Termine</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Today's Schedule */}
+      {todayBookings.length > 0 && (
+        <Card>
+          <CardHeader className="border-b bg-gradient-to-r from-amber-500/10 to-transparent">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Heute</CardTitle>
+                  <CardDescription>{todayBookings.length} Termine</CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {todayBookings.map((booking) => {
+                const slotDate = parseISO(booking.timeSlot.date)
+                const startTime = parseISO(booking.timeSlot.startTime)
+                const endTime = parseISO(booking.timeSlot.endTime)
+                const slotStart = new Date(slotDate)
+                slotStart.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0)
+                const slotEnd = new Date(slotDate)
+                slotEnd.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0)
+
+                const isCurrent = isAfter(now, slotStart) && isBefore(now, slotEnd)
+                const isPast = isAfter(now, slotEnd)
+
+                return (
+                  <div
+                    key={booking.id}
+                    className={`flex items-center gap-4 p-4 transition-colors ${isCurrent ? 'bg-green-50 dark:bg-green-950/20' : isPast ? 'bg-muted/30 opacity-60' : 'hover:bg-muted/50'}`}
+                  >
+                    <div className="flex w-20 flex-col items-center">
+                      <span
+                        className={`text-lg font-bold ${isCurrent ? 'text-green-600' : isPast ? 'text-muted-foreground' : ''}`}
+                      >
+                        {formatTime(booking.timeSlot.startTime)}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {formatTime(booking.timeSlot.endTime)}
+                      </span>
+                    </div>
+                    <div
+                      className={`h-12 w-1 rounded-full ${isCurrent ? 'bg-green-500' : isPast ? 'bg-muted' : 'bg-blue-500'}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-semibold">{booking.companyName}</p>
+                        {isCurrent && (
+                          <span className="rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white">
+                            Jetzt
+                          </span>
+                        )}
+                        {isPast && (
+                          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+                            Beendet
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground truncate text-sm">
+                        {booking.contactName}
+                        {booking.studentName && ` - ${booking.studentName}`}
+                      </p>
+                    </div>
+                    {booking.companyPhone && (
+                      <div className="text-muted-foreground hidden items-center gap-1.5 text-sm md:flex">
+                        <Phone className="h-3.5 w-3.5" />
+                        {booking.companyPhone}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tomorrow's Schedule */}
+      {tomorrowBookings.length > 0 && (
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-xl">
+                <Calendar className="text-primary h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Morgen</CardTitle>
+                <CardDescription>{tomorrowBookings.length} Termine</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {tomorrowBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="hover:bg-muted/50 flex items-center gap-4 p-4 transition-colors"
+                >
+                  <div className="flex w-20 flex-col items-center">
+                    <span className="text-lg font-bold">
+                      {formatTime(booking.timeSlot.startTime)}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {formatTime(booking.timeSlot.endTime)}
+                    </span>
+                  </div>
+                  <div className="bg-primary h-12 w-1 rounded-full" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{booking.companyName}</p>
+                    <p className="text-muted-foreground truncate text-sm">
+                      {booking.contactName}
+                      {booking.studentName && ` - ${booking.studentName}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No appointments message for non-admins */}
+      {!teacher.isAdmin && todayBookings.length === 0 && tomorrowBookings.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="bg-muted mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+              <Calendar className="text-muted-foreground h-8 w-8" />
+            </div>
+            <h2 className="mb-2 text-xl font-semibold">Keine anstehenden Termine</h2>
+            <p className="text-muted-foreground text-center">
+              Sie haben heute und morgen keine gebuchten Termine.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Statistics & Exports */}
       {teacher.isAdmin && statistics && (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -278,42 +627,100 @@ function OverviewTab({
             </Card>
           </div>
 
+          {/* Export Section */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Download className="h-5 w-5" />
-                Schnellaktionen
+                Datenexport
               </CardTitle>
+              <CardDescription>
+                Exportieren Sie Buchungen und Terminlisten als CSV oder druckbare Übersicht
+              </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <a href={api.export.bookingsCsvUrl({ status: 'CONFIRMED' })} download>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Bestätigte Buchungen exportieren (CSV)
-                </Button>
-              </a>
-              <a href={api.export.bookingsCsvUrl()} download>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Alle Buchungen exportieren (CSV)
-                </Button>
-              </a>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <FileText className="text-muted-foreground h-5 w-5" />
+                    <h4 className="font-medium">CSV Export</h4>
+                  </div>
+                  <p className="text-muted-foreground mb-4 text-sm">
+                    Tabellendaten für Excel oder andere Anwendungen
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <a href={api.export.bookingsCsvUrl({ status: 'CONFIRMED' })} download>
+                      <Button variant="outline" size="sm" className="w-full justify-start">
+                        <Download className="mr-2 h-4 w-4" />
+                        Bestätigte Buchungen
+                      </Button>
+                    </a>
+                    <a href={api.export.bookingsCsvUrl()} download>
+                      <Button variant="outline" size="sm" className="w-full justify-start">
+                        <Download className="mr-2 h-4 w-4" />
+                        Alle Buchungen
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Printer className="text-muted-foreground h-5 w-5" />
+                    <h4 className="font-medium">Druckbare Listen</h4>
+                  </div>
+                  <p className="text-muted-foreground mb-4 text-sm">
+                    Optimiert zum Ausdrucken oder als PDF speichern
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <a
+                      href={api.export.bookingsPrintUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline" size="sm" className="w-full justify-start">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Terminlisten (pro Lehrkraft)
+                      </Button>
+                    </a>
+                    <a
+                      href={api.export.bookingsOverviewPrintUrl({ status: 'CONFIRMED' })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline" size="sm" className="w-full justify-start">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Buchungsübersicht
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <CalendarClock className="text-muted-foreground h-5 w-5" />
+                    <h4 className="font-medium">Zeitslot-Übersicht</h4>
+                  </div>
+                  <p className="text-muted-foreground mb-4 text-sm">
+                    Verfügbarkeit aller Lehrkräfte
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <a
+                      href={api.export.timeslotsPrintUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline" size="sm" className="w-full justify-start">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Alle Zeitslots
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </>
-      )}
-
-      {!teacher.isAdmin && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Calendar className="text-muted-foreground mb-4 h-16 w-16" />
-            <h2 className="mb-2 text-xl font-semibold">Ihre Termine verwalten</h2>
-            <p className="text-muted-foreground mb-4 text-center">
-              Wechseln Sie zu &quot;Meine Termine&quot; um Ihre Zeitslots zu verwalten und Buchungen
-              einzusehen.
-            </p>
-          </CardContent>
-        </Card>
       )}
     </div>
   )

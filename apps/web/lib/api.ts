@@ -288,6 +288,40 @@ export const api = {
       if (params?.dateTo) searchParams.set('dateTo', params.dateTo)
       return `${API_BASE}/api/export/bookings/csv?${searchParams}`
     },
+    bookingsPrintUrl: (params?: {
+      dateFrom?: string
+      dateTo?: string
+      departmentId?: string
+      teacherId?: string
+      includeEmpty?: boolean
+    }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom)
+      if (params?.dateTo) searchParams.set('dateTo', params.dateTo)
+      if (params?.departmentId) searchParams.set('departmentId', params.departmentId)
+      if (params?.teacherId) searchParams.set('teacherId', params.teacherId)
+      if (params?.includeEmpty) searchParams.set('includeEmpty', 'true')
+      return `${API_BASE}/api/export/bookings/print?${searchParams}`
+    },
+    bookingsOverviewPrintUrl: (params?: {
+      status?: string
+      dateFrom?: string
+      dateTo?: string
+      departmentId?: string
+    }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.status) searchParams.set('status', params.status)
+      if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom)
+      if (params?.dateTo) searchParams.set('dateTo', params.dateTo)
+      if (params?.departmentId) searchParams.set('departmentId', params.departmentId)
+      return `${API_BASE}/api/export/bookings/print/overview?${searchParams}`
+    },
+    timeslotsPrintUrl: (params?: { date?: string; departmentId?: string }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.date) searchParams.set('date', params.date)
+      if (params?.departmentId) searchParams.set('departmentId', params.departmentId)
+      return `${API_BASE}/api/export/timeslots/print?${searchParams}`
+    },
   },
 }
 

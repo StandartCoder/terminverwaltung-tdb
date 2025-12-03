@@ -7,13 +7,14 @@ import {
   Key,
   LayoutDashboard,
   LogOut,
+  MoreVertical,
   Settings,
   Shield,
   Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { useState, useRef, useEffect } from 'react'
 import type { Teacher } from '@/lib/api'
 
 export type AdminTab =
@@ -78,6 +79,18 @@ const navItems = [
 
 export function Sidebar({ teacher, activeTab, onTabChange, onLogout }: SidebarProps) {
   const router = useRouter()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const filteredNavItems = navItems.filter((item) => !item.adminOnly || teacher.isAdmin)
 
@@ -165,10 +178,10 @@ export function Sidebar({ teacher, activeTab, onTabChange, onLogout }: SidebarPr
 
       {/* User Section */}
       <div className="border-t p-3">
-        <div className="mb-3 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 p-3 dark:from-slate-800 dark:to-slate-900">
+        <div className="rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 p-3 dark:from-slate-800 dark:to-slate-900">
           <div className="flex items-center gap-3">
             <div
-              className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white shadow-md"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-md"
               style={{ backgroundColor: teacher.department?.color || '#6366f1' }}
             >
               {teacher.firstName[0]}
@@ -193,23 +206,39 @@ export function Sidebar({ teacher, activeTab, onTabChange, onLogout }: SidebarPr
                 )}
               </div>
             </div>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg p-1.5 transition-colors"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+              {menuOpen && (
+                <div className="bg-popover absolute bottom-full right-0 mb-1 w-44 rounded-lg border py-1 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      router.push('/lehrer/passwort-aendern')
+                    }}
+                    className="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
+                  >
+                    <Key className="h-4 w-4" />
+                    Passwort ändern
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onLogout()
+                    }}
+                    className="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition-colors dark:text-red-400"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Abmelden
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => router.push('/lehrer/passwort-aendern')}
-          >
-            <Key className="mr-1.5 h-3.5 w-3.5" />
-            Passwort
-          </Button>
-          <Button variant="outline" size="sm" className="h-9" onClick={onLogout}>
-            <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            Abmelden
-          </Button>
         </div>
       </div>
     </aside>

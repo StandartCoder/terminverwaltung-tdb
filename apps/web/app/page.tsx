@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   AlertCircle,
+  AlertTriangle,
   Building2,
   Calendar,
   CalendarOff,
@@ -164,6 +165,10 @@ export default function HomePage() {
       notes: '',
     },
   })
+
+  const studentCount = form.watch('studentCount')
+  const threshold = parseInt(settings.large_company_threshold, 10)
+  const isSondertermin = studentCount >= threshold
 
   const handleDepartmentSelect = (dept: Department) => {
     setSelectedDepartment(dept)
@@ -647,6 +652,37 @@ export default function HomePage() {
                           </div>
                         </div>
 
+                        {/* Sondertermin Warning */}
+                        {isSondertermin && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                            <div className="flex gap-3">
+                              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <div>
+                                <h4 className="font-medium text-amber-800 dark:text-amber-200">
+                                  Sondertermin erforderlich
+                                </h4>
+                                <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                                  Für Betriebe mit {threshold} oder mehr Auszubildenden bieten wir
+                                  Sondertermine an. Bitte kontaktieren Sie das Sekretariat oder die
+                                  Lehrkraft direkt, um einen individuellen Termin zu vereinbaren.
+                                </p>
+                                {selectedSlot?.teacher && (
+                                  <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+                                    Lehrkraft: {selectedSlot.teacher.firstName}{' '}
+                                    {selectedSlot.teacher.lastName}
+                                    {selectedSlot.teacher.department && (
+                                      <span className="font-normal">
+                                        {' '}
+                                        ({selectedSlot.teacher.department.name})
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Student Fields */}
                         {settings.show_student_fields === 'true' && (
                           <div className="border-t pt-4">
@@ -712,11 +748,13 @@ export default function HomePage() {
                           type="submit"
                           className="w-full"
                           size="lg"
-                          disabled={bookingMutation.isPending}
+                          disabled={bookingMutation.isPending || isSondertermin}
                         >
                           {bookingMutation.isPending
                             ? 'Wird gebucht...'
-                            : 'Termin verbindlich buchen'}
+                            : isSondertermin
+                              ? 'Sondertermin erforderlich'
+                              : 'Termin verbindlich buchen'}
                         </Button>
                       </form>
                     </CardContent>

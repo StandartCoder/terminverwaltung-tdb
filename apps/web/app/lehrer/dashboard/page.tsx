@@ -15,28 +15,8 @@ export default function DashboardPage() {
   const { teacher, isLoading, logout } = useRequireAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
 
-  const {
-    slots,
-    loadingSlots,
-    confirmedBookings,
-    statistics,
-    departments,
-    allTeachers,
-    events,
-    settingsMap,
-    selectedDate,
-    setSelectedDate,
-    newSlotDate,
-    setNewSlotDate,
-    newSlotStart,
-    setNewSlotStart,
-    newSlotEnd,
-    setNewSlotEnd,
-    createSlot,
-    isCreatingSlot,
-    toggleSlotStatus,
-    deleteSlot,
-  } = useDashboardData({ teacher })
+  const { confirmedBookings, statistics, departments, allTeachers, events, settingsMap } =
+    useDashboardData({ teacher })
 
   if (isLoading || !teacher) {
     return (
@@ -64,25 +44,7 @@ export default function DashboardPage() {
             <OverviewTab teacher={teacher} statistics={statistics} bookings={confirmedBookings} />
           )}
 
-          {activeTab === 'appointments' && (
-            <AppointmentsTab
-              slots={slots}
-              loadingSlots={loadingSlots}
-              confirmedBookings={confirmedBookings}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              newSlotDate={newSlotDate}
-              setNewSlotDate={setNewSlotDate}
-              newSlotStart={newSlotStart}
-              setNewSlotStart={setNewSlotStart}
-              newSlotEnd={newSlotEnd}
-              setNewSlotEnd={setNewSlotEnd}
-              onCreateSlot={createSlot}
-              onToggleStatus={toggleSlotStatus}
-              onDeleteSlot={deleteSlot}
-              isCreating={isCreatingSlot}
-            />
-          )}
+          {activeTab === 'appointments' && <AppointmentsTab teacherId={teacher.id} />}
 
           {activeTab === 'events' && teacher.isAdmin && <EventsManagement events={events} />}
 

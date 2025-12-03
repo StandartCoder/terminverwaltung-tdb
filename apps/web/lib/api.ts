@@ -131,6 +131,10 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/timeslots/dates`)
       return handleResponse<{ data: string[] }>(res)
     },
+    settings: async () => {
+      const res = await fetch(`${API_BASE}/api/timeslots/settings`)
+      return handleResponse<{ data: TimeSlotSettings }>(res)
+    },
     create: async (data: CreateTimeSlotData) => {
       const res = await fetch(`${API_BASE}/api/timeslots`, {
         method: 'POST',
@@ -146,6 +150,14 @@ export const api = {
         body: JSON.stringify(data),
       })
       return handleResponse<{ data: TimeSlot[]; count: number }>(res)
+    },
+    generate: async (data: GenerateTimeSlotsData) => {
+      const res = await fetch(`${API_BASE}/api/timeslots/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      return handleResponse<{ data: TimeSlot[]; count: number; settings: TimeSlotSettings }>(res)
     },
     updateStatus: async (id: string, status: 'AVAILABLE' | 'BLOCKED') => {
       const res = await fetch(`${API_BASE}/api/timeslots/${id}/status`, {
@@ -394,6 +406,22 @@ export interface CreateBulkTimeSlotsData {
   teacherId: string
   date: string
   slots: { startTime: string; endTime: string }[]
+}
+
+export interface TimeSlotSettings {
+  slotDurationMinutes: number
+  slotBufferMinutes: number
+  dayStartTime: string
+  dayEndTime: string
+}
+
+export interface GenerateTimeSlotsData {
+  teacherId: string
+  date: string
+  startTime?: string
+  endTime?: string
+  slotDurationMinutes?: number
+  slotBufferMinutes?: number
 }
 
 // Booking data - company info entered at booking time (no predefined companies)

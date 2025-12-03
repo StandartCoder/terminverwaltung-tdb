@@ -3,22 +3,23 @@ import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { getAllSettings, getPublicSettings, invalidateSettingsCache } from '../services/settings'
 
 export const settingsRouter = new Hono()
 
+// Public settings endpoint (no auth required) - used by frontend
+settingsRouter.get('/public', async (c) => {
+  const settings = await getPublicSettings()
+  return c.json({ data: settings })
+})
+
+// All settings with defaults merged (for admin)
 settingsRouter.get('/', async (c) => {
   const settings = await db.setting.findMany({
     orderBy: { key: 'asc' },
   })
 
-  // Convert to key-value object for easier frontend use
-  const settingsMap = settings.reduce(
-    (acc, s) => {
-      acc[s.key] = s.value
-      return acc
-    },
-    {} as Record<string, string>
-  )
+  const settingsMap = await getAllSettings()
 
   return c.json({ data: settings, map: settingsMap })
 })
@@ -60,6 +61,7 @@ settingsRouter.put('/', zValidator('json', upsertSettingSchema), async (c) => {
     },
   })
 
+  invalidateSettingsCache()
   return c.json({ data: setting })
 })
 
@@ -85,6 +87,7 @@ settingsRouter.put('/bulk', zValidator('json', bulkUpdateSchema), async (c) => {
     )
   )
 
+  invalidateSettingsCache()
   return c.json({ data: results })
 })
 
@@ -100,5 +103,6 @@ settingsRouter.delete('/:key', async (c) => {
   }
 
   await db.setting.delete({ where: { key } })
+  invalidateSettingsCache()
   return c.json({ message: 'Einstellung erfolgreich gelöscht' })
 })

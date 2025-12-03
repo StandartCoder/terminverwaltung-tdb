@@ -274,6 +274,10 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/settings/${key}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
     },
+    getPublic: async () => {
+      const res = await fetch(`${API_BASE}/api/settings/public`)
+      return handleResponse<{ data: Record<string, string> }>(res)
+    },
   },
 
   export: {

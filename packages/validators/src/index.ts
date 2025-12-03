@@ -190,7 +190,7 @@ export const createBookingSchema = z.object({
 })
 
 export const cancelBookingSchema = z.object({
-  cancellationCode: z.string().min(1, 'Stornierungscode erforderlich'),
+  cancellationCode: z.string().min(1, 'Buchungscode erforderlich'),
 })
 
 export type BookingStatus = z.infer<typeof bookingStatusSchema>

@@ -14,8 +14,28 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { getSetting, getSettingNumber } from '../services/settings'
 
 export const timeslotsRouter = new Hono()
+
+// Get timeslot settings (defaults for generating slots)
+timeslotsRouter.get('/settings', async (c) => {
+  const [slotDuration, slotBuffer, dayStart, dayEnd] = await Promise.all([
+    getSettingNumber('slot_duration_minutes'),
+    getSettingNumber('slot_buffer_minutes'),
+    getSetting('day_start_time'),
+    getSetting('day_end_time'),
+  ])
+
+  return c.json({
+    data: {
+      slotDurationMinutes: slotDuration || 20,
+      slotBufferMinutes: slotBuffer || 0,
+      dayStartTime: dayStart || '08:00',
+      dayEndTime: dayEnd || '18:00',
+    },
+  })
+})
 
 // Use the filter schema from validators for query params
 timeslotsRouter.get('/', zValidator('query', timeSlotFilterSchema), async (c) => {
@@ -266,4 +286,130 @@ timeslotsRouter.delete('/:id', async (c) => {
 
   await db.timeSlot.delete({ where: { id } })
   return c.json({ message: 'Zeitslot gelöscht' })
+})
+
+// Generate timeslots for a teacher based on settings
+const generateSlotsSchema = z.object({
+  teacherId: idSchema,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  endTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  slotDurationMinutes: z.number().min(5).max(120).optional(),
+  slotBufferMinutes: z.number().min(0).max(60).optional(),
+})
+
+timeslotsRouter.post('/generate', zValidator('json', generateSlotsSchema), async (c) => {
+  const body = c.req.valid('json')
+
+  const teacher = await db.teacher.findUnique({ where: { id: body.teacherId } })
+  if (!teacher) {
+    return c.json(
+      { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
+      HTTP_STATUS.NOT_FOUND
+    )
+  }
+
+  // Get settings, use provided values or fall back to settings
+  const [settingDuration, settingBuffer, settingDayStart, settingDayEnd] = await Promise.all([
+    getSettingNumber('slot_duration_minutes'),
+    getSettingNumber('slot_buffer_minutes'),
+    getSetting('day_start_time'),
+    getSetting('day_end_time'),
+  ])
+
+  const slotDuration = (body.slotDurationMinutes ?? settingDuration) || 20
+  const slotBuffer = (body.slotBufferMinutes ?? settingBuffer) || 0
+  const dayStart = (body.startTime ?? settingDayStart) || '08:00'
+  const dayEnd = (body.endTime ?? settingDayEnd) || '18:00'
+
+  const dateObj = parseDateString(body.date)
+
+  // Parse start and end times
+  const [startHour, startMin] = dayStart.split(':').map(Number)
+  const [endHour, endMin] = dayEnd.split(':').map(Number)
+
+  const startMinutes = startHour * 60 + startMin
+  const endMinutes = endHour * 60 + endMin
+
+  if (startMinutes >= endMinutes) {
+    return c.json(
+      { error: ERROR_CODES.VALIDATION_ERROR, message: 'Startzeit muss vor Endzeit liegen' },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+
+  // Generate slots
+  const slots: { startTime: Date; endTime: Date }[] = []
+  let currentMinutes = startMinutes
+
+  while (currentMinutes + slotDuration <= endMinutes) {
+    const slotStartHour = Math.floor(currentMinutes / 60)
+    const slotStartMin = currentMinutes % 60
+    const slotEndMinutes = currentMinutes + slotDuration
+    const slotEndHour = Math.floor(slotEndMinutes / 60)
+    const slotEndMin = slotEndMinutes % 60
+
+    const startTimeStr = `${slotStartHour.toString().padStart(2, '0')}:${slotStartMin.toString().padStart(2, '0')}`
+    const endTimeStr = `${slotEndHour.toString().padStart(2, '0')}:${slotEndMin.toString().padStart(2, '0')}`
+
+    slots.push({
+      startTime: parseTimeString(startTimeStr),
+      endTime: parseTimeString(endTimeStr),
+    })
+
+    currentMinutes += slotDuration + slotBuffer
+  }
+
+  if (slots.length === 0) {
+    return c.json(
+      {
+        error: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Keine Zeitslots können mit diesen Einstellungen erstellt werden',
+      },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+
+  // Create slots (skip existing ones)
+  const createdSlots = await db.$transaction(
+    slots.map((slot) =>
+      db.timeSlot.upsert({
+        where: {
+          teacherId_date_startTime: {
+            teacherId: body.teacherId,
+            date: dateObj,
+            startTime: slot.startTime,
+          },
+        },
+        update: {},
+        create: {
+          teacherId: body.teacherId,
+          date: dateObj,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          status: 'AVAILABLE',
+        },
+      })
+    )
+  )
+
+  return c.json(
+    {
+      data: createdSlots,
+      count: createdSlots.length,
+      settings: {
+        slotDurationMinutes: slotDuration,
+        slotBufferMinutes: slotBuffer,
+        dayStartTime: dayStart,
+        dayEndTime: dayEnd,
+      },
+    },
+    HTTP_STATUS.CREATED
+  )
 })

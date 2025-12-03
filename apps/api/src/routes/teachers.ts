@@ -10,8 +10,21 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { getSettingNumber, getSettingBoolean } from '../services/settings'
 
 export const teachersRouter = new Hono()
+
+// Helper to validate password length against setting
+async function validatePasswordLength(
+  password: string
+): Promise<{ valid: boolean; minLength: number }> {
+  const minLength = await getSettingNumber('min_password_length')
+  const effectiveMinLength = minLength > 0 ? minLength : 6 // fallback to 6
+  return {
+    valid: password.length >= effectiveMinLength,
+    minLength: effectiveMinLength,
+  }
+}
 
 const teacherSelectPublic = {
   id: true,
@@ -131,6 +144,18 @@ teachersRouter.get('/:id/bookings', async (c) => {
 teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
   const body = c.req.valid('json')
 
+  // Validate password length against setting
+  const passwordCheck = await validatePasswordLength(body.password)
+  if (!passwordCheck.valid) {
+    return c.json(
+      {
+        error: ERROR_CODES.VALIDATION_ERROR,
+        message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+      },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+
   const existing = await db.teacher.findUnique({ where: { email: body.email } })
   if (existing) {
     return c.json(
@@ -149,6 +174,9 @@ teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
     }
   }
 
+  // Check if new teachers must change password
+  const requirePasswordChange = await getSettingBoolean('require_password_change')
+
   const teacher = await db.teacher.create({
     data: {
       email: body.email,
@@ -158,6 +186,7 @@ teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
       room: body.room,
       departmentId: body.departmentId,
       isAdmin: body.isAdmin,
+      mustChangePassword: requirePasswordChange,
     },
     select: teacherSelectPublic,
   })
@@ -193,12 +222,24 @@ teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) 
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Aktuelles Passwort erforderlich'),
-  newPassword: z.string().min(6, 'Mindestens 6 Zeichen'),
+  newPassword: z.string().min(1, 'Neues Passwort erforderlich'),
 })
 
 teachersRouter.post('/:id/change-password', zValidator('json', changePasswordSchema), async (c) => {
   const id = c.req.param('id')
   const { currentPassword, newPassword } = c.req.valid('json')
+
+  // Validate password length against setting
+  const passwordCheck = await validatePasswordLength(newPassword)
+  if (!passwordCheck.valid) {
+    return c.json(
+      {
+        error: ERROR_CODES.VALIDATION_ERROR,
+        message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+      },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
 
   const teacher = await db.teacher.findUnique({ where: { id } })
   if (!teacher) {
@@ -227,12 +268,24 @@ teachersRouter.post('/:id/change-password', zValidator('json', changePasswordSch
 })
 
 const setPasswordSchema = z.object({
-  newPassword: z.string().min(6, 'Mindestens 6 Zeichen'),
+  newPassword: z.string().min(1, 'Neues Passwort erforderlich'),
 })
 
 teachersRouter.post('/:id/set-password', zValidator('json', setPasswordSchema), async (c) => {
   const id = c.req.param('id')
   const { newPassword } = c.req.valid('json')
+
+  // Validate password length against setting
+  const passwordCheck = await validatePasswordLength(newPassword)
+  if (!passwordCheck.valid) {
+    return c.json(
+      {
+        error: ERROR_CODES.VALIDATION_ERROR,
+        message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+      },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
 
   const teacher = await db.teacher.findUnique({ where: { id } })
   if (!teacher) {

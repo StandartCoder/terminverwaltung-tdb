@@ -5,6 +5,8 @@ import {
   sendBookingConfirmation,
   sendBookingCancellation,
   sendRebookConfirmation,
+  sendTeacherBookingNotification,
+  type EmailSettings,
 } from '@terminverwaltung/email'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import {
@@ -15,14 +17,101 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { getSettingBoolean, getSettingNumber, getSetting } from '../services/settings'
 
 export const bookingsRouter = new Hono()
+
+// Helper to get email settings from database
+async function getEmailSettings(): Promise<EmailSettings> {
+  const [schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo] =
+    await Promise.all([
+      getSetting('school_name'),
+      getSetting('school_email'),
+      getSetting('school_phone'),
+      getSetting('public_url'),
+      getSetting('email_from_name'),
+      getSetting('email_reply_to'),
+    ])
+  return { schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo }
+}
+
+// Helper to check if booking/cancel/rebook is allowed based on notice hours
+async function checkNoticeHours(
+  timeSlotDate: Date,
+  timeSlotStart: Date,
+  settingKey: 'booking_notice_hours' | 'cancel_notice_hours'
+): Promise<{ allowed: boolean; message?: string }> {
+  const noticeHours = await getSettingNumber(settingKey)
+  if (noticeHours <= 0) return { allowed: true }
+
+  const slotDateTime = new Date(timeSlotDate)
+  slotDateTime.setHours(timeSlotStart.getHours(), timeSlotStart.getMinutes(), 0, 0)
+
+  const now = new Date()
+  const hoursUntilSlot = (slotDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+  if (hoursUntilSlot < noticeHours) {
+    const action = settingKey === 'booking_notice_hours' ? 'gebucht' : 'storniert'
+    return {
+      allowed: false,
+      message: `Termine können nur bis ${noticeHours} Stunden vorher ${action} werden`,
+    }
+  }
+
+  return { allowed: true }
+}
 
 bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
   const body = c.req.valid('json')
 
+  // Check if booking is enabled
+  const bookingEnabled = await getSettingBoolean('booking_enabled')
+  if (!bookingEnabled) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Buchungen sind derzeit deaktiviert' },
+      HTTP_STATUS.FORBIDDEN
+    )
+  }
+
+  // Validate required fields based on settings
+  const requirePhone = await getSettingBoolean('require_phone')
+  if (requirePhone && (!body.companyPhone || body.companyPhone.trim() === '')) {
+    return c.json(
+      { error: ERROR_CODES.VALIDATION_ERROR, message: 'Telefonnummer ist erforderlich' },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+
+  const requireContactName = await getSettingBoolean('require_contact_name')
+  if (requireContactName && (!body.contactName || body.contactName.trim() === '')) {
+    return c.json(
+      { error: ERROR_CODES.VALIDATION_ERROR, message: 'Ansprechpartner ist erforderlich' },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+
+  // Check max bookings per company
+  const maxBookings = await getSettingNumber('max_bookings_per_company')
+  if (maxBookings > 0) {
+    const existingBookings = await db.booking.count({
+      where: {
+        companyEmail: body.companyEmail,
+        status: 'CONFIRMED',
+      },
+    })
+    if (existingBookings >= maxBookings) {
+      return c.json(
+        {
+          error: ERROR_CODES.FORBIDDEN,
+          message: `Sie haben bereits ${maxBookings} Termin(e) gebucht. Maximale Anzahl erreicht.`,
+        },
+        HTTP_STATUS.FORBIDDEN
+      )
+    }
+  }
+
   const result = await db.$transaction(
-    async (tx) => {
+    async (tx: Prisma.TransactionClient) => {
       const timeSlot = await tx.timeSlot.findUnique({
         where: { id: body.timeSlotId },
         include: {
@@ -39,12 +128,21 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
         throw new Error('SLOT_ALREADY_BOOKED:Dieser Termin ist bereits vergeben')
       }
 
+      // Check booking notice hours
+      const noticeCheck = await checkNoticeHours(
+        timeSlot.date,
+        timeSlot.startTime,
+        'booking_notice_hours'
+      )
+      if (!noticeCheck.allowed) {
+        throw new Error(`FORBIDDEN:${noticeCheck.message}`)
+      }
+
       await tx.timeSlot.update({
         where: { id: body.timeSlotId },
         data: { status: 'BOOKED' },
       })
 
-      // Create booking with company info stored directly (no separate Company entity)
       const booking = await tx.booking.create({
         data: {
           timeSlotId: body.timeSlotId,
@@ -74,10 +172,27 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
     }
   )
 
-  try {
-    await sendBookingConfirmation(result)
-  } catch (emailError) {
-    console.error('Failed to send confirmation email:', emailError)
+  // Send email if enabled
+  const emailEnabled = await getSettingBoolean('email_notifications')
+  if (emailEnabled) {
+    const emailSettings = await getEmailSettings()
+
+    // Send confirmation to company
+    try {
+      await sendBookingConfirmation(result, emailSettings)
+    } catch (emailError) {
+      console.error('Failed to send confirmation email:', emailError)
+    }
+
+    // Notify teacher if enabled
+    const notifyTeacher = await getSettingBoolean('notify_teacher_on_booking')
+    if (notifyTeacher && result.teacher.email) {
+      try {
+        await sendTeacherBookingNotification(result, result.teacher.email, emailSettings)
+      } catch (emailError) {
+        console.error('Failed to send teacher notification email:', emailError)
+      }
+    }
   }
 
   return c.json(
@@ -103,6 +218,15 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
 bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c) => {
   const { cancellationCode } = c.req.valid('json')
 
+  // Check if cancellation is allowed
+  const allowCancel = await getSettingBoolean('allow_cancel')
+  if (!allowCancel) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Stornierungen sind derzeit deaktiviert' },
+      HTTP_STATUS.FORBIDDEN
+    )
+  }
+
   const booking = await db.booking.findUnique({
     where: { cancellationCode },
     include: {
@@ -113,7 +237,7 @@ bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c
 
   if (!booking) {
     return c.json(
-      { error: ERROR_CODES.INVALID_CANCELLATION_CODE, message: 'Ungültiger Stornierungscode' },
+      { error: ERROR_CODES.INVALID_CANCELLATION_CODE, message: 'Ungültiger Buchungscode' },
       HTTP_STATUS.NOT_FOUND
     )
   }
@@ -122,6 +246,19 @@ bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c
     return c.json(
       { error: ERROR_CODES.CONFLICT, message: 'Buchung wurde bereits storniert' },
       HTTP_STATUS.CONFLICT
+    )
+  }
+
+  // Check cancel notice hours
+  const noticeCheck = await checkNoticeHours(
+    booking.timeSlot.date,
+    booking.timeSlot.startTime,
+    'cancel_notice_hours'
+  )
+  if (!noticeCheck.allowed) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: noticeCheck.message },
+      HTTP_STATUS.FORBIDDEN
     )
   }
 
@@ -136,10 +273,15 @@ bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c
     }),
   ])
 
-  try {
-    await sendBookingCancellation(booking)
-  } catch (emailError) {
-    console.error('Failed to send cancellation email:', emailError)
+  // Send email if enabled
+  const emailEnabled = await getSettingBoolean('email_notifications')
+  if (emailEnabled) {
+    try {
+      const emailSettings = await getEmailSettings()
+      await sendBookingCancellation(booking, emailSettings)
+    } catch (emailError) {
+      console.error('Failed to send cancellation email:', emailError)
+    }
   }
 
   return c.json({ message: 'Buchung erfolgreich storniert' })
@@ -165,6 +307,10 @@ bookingsRouter.get('/check/:code', async (c) => {
     )
   }
 
+  // Include settings for rebook/cancel availability
+  const allowRebook = await getSettingBoolean('allow_rebook')
+  const allowCancel = await getSettingBoolean('allow_cancel')
+
   return c.json({
     data: {
       id: booking.id,
@@ -174,6 +320,10 @@ bookingsRouter.get('/check/:code', async (c) => {
       companyName: booking.companyName,
       teacher: booking.teacher,
       timeSlot: booking.timeSlot,
+    },
+    permissions: {
+      canRebook: allowRebook && booking.status === 'CONFIRMED',
+      canCancel: allowCancel && booking.status === 'CONFIRMED',
     },
   })
 })
@@ -262,16 +412,24 @@ bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema
 
 // Rebook: change to a different timeslot (atomic operation)
 const rebookSchema = z.object({
-  cancellationCode: z.string().min(1, 'Stornierungscode erforderlich'),
+  cancellationCode: z.string().min(1, 'Buchungscode erforderlich'),
   newTimeSlotId: idSchema,
 })
 
 bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
   const { cancellationCode, newTimeSlotId } = c.req.valid('json')
 
+  // Check if rebooking is allowed
+  const allowRebook = await getSettingBoolean('allow_rebook')
+  if (!allowRebook) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Umbuchungen sind derzeit deaktiviert' },
+      HTTP_STATUS.FORBIDDEN
+    )
+  }
+
   const result = await db.$transaction(
-    async (tx) => {
-      // Find existing booking
+    async (tx: Prisma.TransactionClient) => {
       const existingBooking = await tx.booking.findUnique({
         where: { cancellationCode },
         include: {
@@ -288,7 +446,6 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
         throw new Error('ALREADY_CANCELLED:Diese Buchung wurde bereits storniert')
       }
 
-      // Check new timeslot availability
       const newTimeSlot = await tx.timeSlot.findUnique({
         where: { id: newTimeSlotId },
         include: {
@@ -305,30 +462,36 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
         throw new Error('SLOT_ALREADY_BOOKED:Der neue Termin ist bereits vergeben')
       }
 
-      // Same slot check
       if (existingBooking.timeSlotId === newTimeSlotId) {
         throw new Error('SAME_SLOT:Sie haben bereits diesen Termin gebucht')
       }
 
-      // Release old timeslot
+      // Check booking notice hours for the new slot
+      const noticeCheck = await checkNoticeHours(
+        newTimeSlot.date,
+        newTimeSlot.startTime,
+        'booking_notice_hours'
+      )
+      if (!noticeCheck.allowed) {
+        throw new Error(`FORBIDDEN:${noticeCheck.message}`)
+      }
+
       await tx.timeSlot.update({
         where: { id: existingBooking.timeSlotId },
         data: { status: 'AVAILABLE' },
       })
 
-      // Book new timeslot
       await tx.timeSlot.update({
         where: { id: newTimeSlotId },
         data: { status: 'BOOKED' },
       })
 
-      // Update booking with new timeslot and teacher
       const updatedBooking = await tx.booking.update({
         where: { id: existingBooking.id },
         data: {
           timeSlotId: newTimeSlotId,
           teacherId: newTimeSlot.teacherId,
-          cancellationCode: generateCancellationCode(), // Generate new code for security
+          cancellationCode: generateCancellationCode(),
         },
         include: {
           teacher: { include: { department: true } },
@@ -343,11 +506,15 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
     }
   )
 
-  // Send rebook confirmation email
-  try {
-    await sendRebookConfirmation(result.updatedBooking, result.oldTimeSlot)
-  } catch (emailError) {
-    console.error('Failed to send rebook confirmation email:', emailError)
+  // Send email if enabled
+  const emailEnabled = await getSettingBoolean('email_notifications')
+  if (emailEnabled) {
+    try {
+      const emailSettings = await getEmailSettings()
+      await sendRebookConfirmation(result.updatedBooking, result.oldTimeSlot, emailSettings)
+    } catch (emailError) {
+      console.error('Failed to send rebook confirmation email:', emailError)
+    }
   }
 
   return c.json({

@@ -17,8 +17,9 @@ import {
   MapPin,
   Phone,
   User,
+  Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -28,15 +29,38 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { api, type BookingConfirmation, type Department, type TimeSlot } from '@/lib/api'
 
-const bookingSchema = z.object({
-  companyName: z.string().min(1, 'Firmenname erforderlich'),
-  companyEmail: z.string().email('Ungültige E-Mail-Adresse'),
-  companyPhone: z.string().optional(),
-  contactName: z.string().min(1, 'Ansprechpartner erforderlich'),
-  notes: z.string().max(500, 'Maximal 500 Zeichen').optional(),
-})
+interface PublicSettings {
+  require_phone: string
+  require_contact_name: string
+  show_student_fields: string
+  show_parent_fields: string
+  large_company_threshold: string
+  school_name: string
+  event_title: string
+}
 
-type BookingFormData = z.infer<typeof bookingSchema>
+function createBookingSchema(settings: PublicSettings) {
+  return z.object({
+    companyName: z.string().min(1, 'Firmenname erforderlich'),
+    companyEmail: z.string().email('Ungültige E-Mail-Adresse'),
+    companyPhone:
+      settings.require_phone === 'true'
+        ? z.string().min(1, 'Telefonnummer erforderlich')
+        : z.string().optional(),
+    contactName:
+      settings.require_contact_name === 'true'
+        ? z.string().min(1, 'Ansprechpartner erforderlich')
+        : z.string().optional(),
+    studentCount: z.number().int().min(1).default(1),
+    studentName: z.string().optional(),
+    studentClass: z.string().optional(),
+    parentName: z.string().optional(),
+    parentEmail: z.string().email().optional().or(z.literal('')),
+    notes: z.string().max(500, 'Maximal 500 Zeichen').optional(),
+  })
+}
+
+type BookingFormData = z.infer<ReturnType<typeof createBookingSchema>>
 
 type BookingStep = 'department' | 'date' | 'slot' | 'form' | 'confirmation'
 
@@ -48,6 +72,28 @@ export default function HomePage() {
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null)
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  // Fetch public settings
+  const { data: publicSettings } = useQuery({
+    queryKey: ['publicSettings'],
+    queryFn: () => api.settings.getPublic(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  const settings: PublicSettings = useMemo(
+    () => ({
+      require_phone: publicSettings?.data?.require_phone || 'false',
+      require_contact_name: publicSettings?.data?.require_contact_name || 'true',
+      show_student_fields: publicSettings?.data?.show_student_fields || 'true',
+      show_parent_fields: publicSettings?.data?.show_parent_fields || 'true',
+      large_company_threshold: publicSettings?.data?.large_company_threshold || '5',
+      school_name: publicSettings?.data?.school_name || 'OSZ Teltow',
+      event_title: publicSettings?.data?.event_title || 'Tag der Betriebe',
+    }),
+    [publicSettings]
+  )
+
+  const bookingSchema = useMemo(() => createBookingSchema(settings), [settings])
 
   const {
     data: activeEvent,
@@ -110,6 +156,11 @@ export default function HomePage() {
       companyEmail: '',
       companyPhone: '',
       contactName: '',
+      studentCount: 1,
+      studentName: '',
+      studentClass: '',
+      parentName: '',
+      parentEmail: '',
       notes: '',
     },
   })
@@ -188,12 +239,20 @@ export default function HomePage() {
               <p className="text-muted-foreground text-sm">Tag der Betriebe</p>
             </div>
           </div>
-          <a
-            href="/lehrer"
-            className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-          >
-            Lehrkraft-Login
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href="/buchung/verwalten"
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+            >
+              Buchung verwalten
+            </a>
+            <a
+              href="/lehrer"
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+            >
+              Lehrkraft-Login
+            </a>
+          </div>
         </div>
       </header>
 
@@ -499,7 +558,8 @@ export default function HomePage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        {/* Company Info */}
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label htmlFor="companyName">
@@ -521,7 +581,8 @@ export default function HomePage() {
                           <div className="space-y-2">
                             <Label htmlFor="contactName">
                               <User className="mr-2 inline h-4 w-4" />
-                              Ansprechpartner *
+                              Ansprechpartner{' '}
+                              {settings.require_contact_name === 'true' ? '*' : '(optional)'}
                             </Label>
                             <Input
                               id="contactName"
@@ -556,7 +617,7 @@ export default function HomePage() {
                           <div className="space-y-2">
                             <Label htmlFor="companyPhone">
                               <Phone className="mr-2 inline h-4 w-4" />
-                              Telefon (optional)
+                              Telefon {settings.require_phone === 'true' ? '*' : '(optional)'}
                             </Label>
                             <Input
                               id="companyPhone"
@@ -564,15 +625,85 @@ export default function HomePage() {
                               placeholder="+49 30 12345678"
                               {...form.register('companyPhone')}
                             />
+                            {form.formState.errors.companyPhone && (
+                              <p className="text-destructive text-sm">
+                                {form.formState.errors.companyPhone.message}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="studentCount">
+                              <Users className="mr-2 inline h-4 w-4" />
+                              Anzahl Auszubildende
+                            </Label>
+                            <Input
+                              id="studentCount"
+                              type="number"
+                              min={1}
+                              defaultValue={1}
+                              {...form.register('studentCount', { valueAsNumber: true })}
+                            />
                           </div>
                         </div>
 
-                        <div className="space-y-2">
+                        {/* Student Fields */}
+                        {settings.show_student_fields === 'true' && (
+                          <div className="border-t pt-4">
+                            <h4 className="mb-4 font-medium">Auszubildende/r (optional)</h4>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="studentName">Name des Auszubildenden</Label>
+                                <Input
+                                  id="studentName"
+                                  placeholder="Max Mustermann"
+                                  {...form.register('studentName')}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="studentClass">Klasse</Label>
+                                <Input
+                                  id="studentClass"
+                                  placeholder="z.B. FAI21"
+                                  {...form.register('studentClass')}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Parent Fields */}
+                        {settings.show_parent_fields === 'true' && (
+                          <div className="border-t pt-4">
+                            <h4 className="mb-4 font-medium">Elternkontakt (optional)</h4>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="parentName">Name Elternteil</Label>
+                                <Input
+                                  id="parentName"
+                                  placeholder="Erika Mustermann"
+                                  {...form.register('parentName')}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="parentEmail">E-Mail Elternteil</Label>
+                                <Input
+                                  id="parentEmail"
+                                  type="email"
+                                  placeholder="eltern@beispiel.de"
+                                  {...form.register('parentEmail')}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2 border-t pt-4">
                           <Label htmlFor="notes">Notizen (optional)</Label>
                           <textarea
                             id="notes"
                             className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                            placeholder="z.B. Name des Auszubildenden oder besondere Anliegen"
+                            placeholder="Besondere Anliegen oder Gesprächsthemen"
                             {...form.register('notes')}
                           />
                         </div>
@@ -636,12 +767,12 @@ export default function HomePage() {
                         </div>
 
                         <div className="mt-6 border-t pt-4">
-                          <p className="text-muted-foreground text-sm">Stornierungscode:</p>
+                          <p className="text-muted-foreground text-sm">Buchungscode:</p>
                           <code className="bg-muted mt-1 block rounded px-3 py-2 font-mono text-sm">
                             {confirmation.cancellationCode}
                           </code>
                           <p className="text-muted-foreground mt-2 text-xs">
-                            Bewahren Sie diesen Code auf, falls Sie den Termin stornieren möchten.
+                            Bewahren Sie diesen Code auf, um Ihren Termin zu verwalten.
                           </p>
                         </div>
                       </div>

@@ -41,6 +41,14 @@ export function getFromAddress(): string {
   return DEFAULT_CONFIG.from
 }
 
+export function formatFromAddress(fromName?: string): string {
+  const email = DEFAULT_CONFIG.from
+  if (fromName && fromName.trim()) {
+    return `"${fromName}" <${email}>`
+  }
+  return email
+}
+
 export function getPublicUrl(): string {
   return process.env.PUBLIC_URL || 'http://localhost:3000'
 }

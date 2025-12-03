@@ -5,6 +5,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import { bookingsRouter } from './routes/bookings'
+import { cronRouter } from './routes/cron'
 import { departmentsRouter } from './routes/departments'
 import { eventsRouter } from './routes/events'
 import { exportRouter } from './routes/export'
@@ -26,6 +27,7 @@ app.use(
 )
 
 app.route('/health', healthRouter)
+app.route('/api/cron', cronRouter)
 app.route('/api/departments', departmentsRouter)
 app.route('/api/teachers', teachersRouter)
 app.route('/api/timeslots', timeslotsRouter)

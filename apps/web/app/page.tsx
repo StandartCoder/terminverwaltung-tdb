@@ -827,10 +827,48 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="mt-12 border-t py-8">
-        <div className="text-muted-foreground container text-center text-sm">
-          <p>OSZ Teltow - Oberstufenzentrum Teltow</p>
-          <p className="mt-1">Tag der Betriebe {new Date().getFullYear()}</p>
+      <footer className="bg-muted/30 mt-12 border-t py-8">
+        <div className="container">
+          <div className="grid gap-8 md:grid-cols-3">
+            <div>
+              <h3 className="font-semibold">OSZ Teltow</h3>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Oberstufenzentrum Teltow
+                <br />
+                Potsdamer Straße 4
+                <br />
+                14513 Teltow
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Kontakt</h3>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Telefon: (03328) 35 07 0
+                <br />
+                E-Mail: info@osz-teltow.de
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Rechtliches</h3>
+              <div className="mt-2 flex flex-col gap-1">
+                <a
+                  href="/impressum"
+                  className="text-muted-foreground hover:text-foreground text-sm hover:underline"
+                >
+                  Impressum
+                </a>
+                <a
+                  href="/datenschutz"
+                  className="text-muted-foreground hover:text-foreground text-sm hover:underline"
+                >
+                  Datenschutzerklärung
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="text-muted-foreground mt-8 border-t pt-6 text-center text-sm">
+            <p>Tag der Betriebe {new Date().getFullYear()} · OSZ Teltow</p>
+          </div>
         </div>
       </footer>
     </div>

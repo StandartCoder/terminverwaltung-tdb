@@ -7,6 +7,30 @@ export type BookingWithRelations = Booking & {
   timeSlot: TimeSlot
 }
 
+// Helper to format students array as string
+type Student = { name?: string; class?: string }
+function formatStudents(students: unknown): { names: string; classes: string } {
+  if (!students || !Array.isArray(students)) {
+    return { names: '', classes: '' }
+  }
+  const studentList = students as Student[]
+  const names = studentList
+    .map((s) => s.name || '')
+    .filter(Boolean)
+    .join(', ')
+  const classes = studentList
+    .map((s) => s.class || '')
+    .filter(Boolean)
+    .join(', ')
+  return { names, classes }
+}
+
+function getFirstStudentName(students: unknown): string {
+  if (!students || !Array.isArray(students)) return ''
+  const studentList = students as Student[]
+  return studentList[0]?.name || ''
+}
+
 export interface EmailSettings {
   schoolName?: string
   schoolEmail?: string
@@ -164,10 +188,11 @@ async function sendParentBookingNotification(
   booking: BookingWithRelations,
   settings?: EmailSettings
 ): Promise<void> {
-  const { teacher, timeSlot, companyName, parentEmail, parentName, studentName } = booking
+  const { teacher, timeSlot, companyName, parentEmail, parentName, students } = booking
   const resolvedSettings = getSettings(settings)
   const { schoolName } = resolvedSettings
 
+  const studentName = getFirstStudentName(students)
   const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
 
   const html = `
@@ -306,10 +331,11 @@ async function sendParentCancellationNotification(
   booking: BookingWithRelations,
   settings?: EmailSettings
 ): Promise<void> {
-  const { teacher, timeSlot, companyName, parentEmail, parentName, studentName } = booking
+  const { teacher, timeSlot, companyName, parentEmail, parentName, students } = booking
   const resolvedSettings = getSettings(settings)
   const { schoolName } = resolvedSettings
 
+  const studentName = getFirstStudentName(students)
   const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
 
   const html = `
@@ -466,10 +492,11 @@ async function sendParentRebookNotification(
   oldTimeSlot: TimeSlot,
   settings?: EmailSettings
 ): Promise<void> {
-  const { teacher, timeSlot, companyName, parentEmail, parentName, studentName } = booking
+  const { teacher, timeSlot, companyName, parentEmail, parentName, students } = booking
   const resolvedSettings = getSettings(settings)
   const { schoolName } = resolvedSettings
 
+  const studentName = getFirstStudentName(students)
   const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
 
   const html = `
@@ -560,9 +587,11 @@ export async function sendTeacherBookingNotification(
   teacherEmail: string,
   settings?: EmailSettings
 ): Promise<void> {
-  const { teacher, timeSlot, companyName, contactName, studentName, studentClass, notes } = booking
+  const { teacher, timeSlot, companyName, contactName, students, notes } = booking
   const resolvedSettings = getSettings(settings)
   const { schoolName } = resolvedSettings
+
+  const { names: studentNames, classes: studentClasses } = formatStudents(students)
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -606,11 +635,11 @@ export async function sendTeacherBookingNotification(
               : ''
           }
           ${
-            studentName
+            studentNames
               ? `
           <tr>
             <td style="padding: 8px 0; color: #2c5282;">Auszubildende/r:</td>
-            <td style="padding: 8px 0;">${studentName}${studentClass ? ` (${studentClass})` : ''}</td>
+            <td style="padding: 8px 0;">${studentNames}${studentClasses ? ` (${studentClasses})` : ''}</td>
           </tr>
           `
               : ''
@@ -732,10 +761,11 @@ async function sendParentReminder(
   hoursUntilAppointment: number,
   settings?: EmailSettings
 ): Promise<void> {
-  const { teacher, timeSlot, companyName, parentEmail, parentName, studentName } = booking
+  const { teacher, timeSlot, companyName, parentEmail, parentName, students } = booking
   const resolvedSettings = getSettings(settings)
   const { schoolName } = resolvedSettings
 
+  const studentName = getFirstStudentName(students)
   const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
 
   const html = `

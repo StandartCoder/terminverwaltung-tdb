@@ -97,9 +97,9 @@ model Booking {
   contactName    String? // Ansprechpartner
   studentCount   Int      @default(1) // Number of students being discussed (for large company handling >5)
   
-  // Optional: Student name if discussing a specific trainee
-  studentName    String?
-  studentClass   String?  // e.g., "FI23A"
+  // Students info - stored as JSON arrays for flexibility
+  // Each student has a name and class, stored as parallel arrays
+  students       Json?    // Array of { name: string, class: string }
   
   // Optional: Parent info if parent is attending (for minors)
   parentName     String?

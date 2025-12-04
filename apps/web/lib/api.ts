@@ -432,8 +432,7 @@ export interface CreateBookingData {
   companyPhone?: string
   contactName?: string
   studentCount?: number
-  studentName?: string
-  studentClass?: string
+  students?: { name?: string; class?: string }[]
   parentName?: string
   parentEmail?: string
   notes?: string

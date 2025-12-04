@@ -1,6 +1,6 @@
+import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Impressum – Tag der Betriebe – OSZ Teltow',
@@ -26,8 +26,8 @@ export default function ImpressumPage() {
             <h2 className="text-xl font-semibold">Angaben gemäß § 5 TMG</h2>
             <p className="mt-4">
               Landkreis Potsdam-Mittelmark
-              <br/>
-              <br/>
+              <br />
+              <br />
               Oberstufenzentrum Teltow
               <br />
               Potsdamer Straße 4

@@ -4,6 +4,24 @@ import { Hono } from 'hono'
 
 export const exportRouter = new Hono()
 
+// Helper to format students array as string
+type Student = { name?: string; class?: string }
+function formatStudents(students: unknown): { names: string; classes: string } {
+  if (!students || !Array.isArray(students)) {
+    return { names: '', classes: '' }
+  }
+  const studentList = students as Student[]
+  const names = studentList
+    .map((s) => s.name || '')
+    .filter(Boolean)
+    .join(', ')
+  const classes = studentList
+    .map((s) => s.class || '')
+    .filter(Boolean)
+    .join(', ')
+  return { names, classes }
+}
+
 const PRINT_STYLES = `
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -108,24 +126,27 @@ exportRouter.get('/bookings/csv', async (c) => {
     'Gebucht am',
   ]
 
-  const rows = bookings.map((b) => [
-    formatDate(b.timeSlot.date),
-    formatTime(b.timeSlot.startTime),
-    formatTime(b.timeSlot.endTime),
-    b.teacher.department?.name || '',
-    `${b.teacher.lastName}, ${b.teacher.firstName}`,
-    b.teacher.room || '',
-    b.companyName,
-    b.contactName || '',
-    b.companyEmail,
-    b.companyPhone || '',
-    b.studentName || '',
-    b.studentClass || '',
-    b.studentCount,
-    b.notes || '',
-    b.status,
-    b.bookedAt.toISOString(),
-  ])
+  const rows = bookings.map((b) => {
+    const { names, classes } = formatStudents(b.students)
+    return [
+      formatDate(b.timeSlot.date),
+      formatTime(b.timeSlot.startTime),
+      formatTime(b.timeSlot.endTime),
+      b.teacher.department?.name || '',
+      `${b.teacher.lastName}, ${b.teacher.firstName}`,
+      b.teacher.room || '',
+      b.companyName,
+      b.contactName || '',
+      b.companyEmail,
+      b.companyPhone || '',
+      names,
+      classes,
+      b.studentCount,
+      b.notes || '',
+      b.status,
+      b.bookedAt.toISOString(),
+    ]
+  })
 
   const csvContent = [
     headers.join(';'),
@@ -331,12 +352,15 @@ exportRouter.get('/bookings/print', async (c) => {
       <tbody>
 `
       for (const booking of teacher.bookings) {
+        const { names, classes } = formatStudents(booking.students)
+        const studentDisplay = names || '-'
+        const classDisplay = classes ? ` (${escapeHtml(classes)})` : ''
         html += `        <tr>
           <td>${escapeHtml(formatShortDate(booking.timeSlot.date))}</td>
           <td>${escapeHtml(formatTime(booking.timeSlot.startTime))} - ${escapeHtml(formatTime(booking.timeSlot.endTime))}</td>
           <td>${escapeHtml(booking.companyName)}</td>
           <td>${escapeHtml(booking.contactName || '-')}</td>
-          <td>${escapeHtml(booking.studentName || '-')}${booking.studentClass ? ` (${escapeHtml(booking.studentClass)})` : ''}</td>
+          <td>${escapeHtml(studentDisplay)}${classDisplay}</td>
           <td>${escapeHtml(booking.companyEmail)}${booking.companyPhone ? `<br>${escapeHtml(booking.companyPhone)}` : ''}</td>
         </tr>
 `
@@ -419,6 +443,9 @@ exportRouter.get('/bookings/print/overview', async (c) => {
 
   for (const b of bookings) {
     const statusClass = `status-${b.status.toLowerCase()}`
+    const { names, classes } = formatStudents(b.students)
+    const studentDisplay = names || '-'
+    const classDisplay = classes ? ` (${escapeHtml(classes)})` : ''
     html += `      <tr>
         <td>${escapeHtml(formatShortDate(b.timeSlot.date))}</td>
         <td>${escapeHtml(formatTime(b.timeSlot.startTime))}</td>
@@ -426,7 +453,7 @@ exportRouter.get('/bookings/print/overview', async (c) => {
         <td>${escapeHtml(b.teacher.room || '-')}</td>
         <td>${escapeHtml(b.companyName)}</td>
         <td>${escapeHtml(b.contactName || '-')}</td>
-        <td>${escapeHtml(b.studentName || '-')}${b.studentClass ? ` (${escapeHtml(b.studentClass)})` : ''}</td>
+        <td>${escapeHtml(studentDisplay)}${classDisplay}</td>
         <td class="${statusClass}">${escapeHtml(getStatusLabel(b.status))}</td>
         <td>${escapeHtml(b.notes || '-')}</td>
       </tr>

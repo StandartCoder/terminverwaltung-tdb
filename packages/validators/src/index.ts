@@ -162,8 +162,15 @@ export const bookingSchema = z.object({
   companyPhone: phoneSchema,
   contactName: z.string().optional().nullable(),
   studentCount: z.number().int().min(1).default(1),
-  studentName: z.string().optional().nullable(),
-  studentClass: z.string().optional().nullable(),
+  students: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        class: z.string().optional(),
+      })
+    )
+    .optional()
+    .nullable(),
   parentName: z.string().optional().nullable(),
   parentEmail: emailSchema.optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -181,9 +188,15 @@ export const createBookingSchema = z.object({
   companyEmail: emailSchema,
   companyPhone: phoneSchema,
   contactName: z.string().optional(),
-  studentCount: z.number().int().min(1).default(1),
-  studentName: z.string().optional(),
-  studentClass: z.string().optional(),
+  studentCount: z.number().int().min(1).max(10).default(1),
+  students: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        class: z.string().optional(),
+      })
+    )
+    .optional(),
   parentName: z.string().optional(),
   parentEmail: z.string().email().optional().or(z.literal('')),
   notes: z.string().max(500, 'Maximal 500 Zeichen').optional(),

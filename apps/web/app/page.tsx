@@ -52,9 +52,15 @@ function createBookingSchema(settings: PublicSettings) {
       settings.require_contact_name === 'true'
         ? z.string().min(1, 'Ansprechpartner erforderlich')
         : z.string().optional(),
-    studentCount: z.number().int().min(1).default(1),
-    studentName: z.string().optional(),
-    studentClass: z.string().optional(),
+    studentCount: z.number().int().min(1).max(10).default(1),
+    students: z
+      .array(
+        z.object({
+          name: z.string().optional(),
+          class: z.string().optional(),
+        })
+      )
+      .optional(),
     parentName: z.string().optional(),
     parentEmail: z.string().email().optional().or(z.literal('')),
     notes: z.string().max(500, 'Maximal 500 Zeichen').optional(),
@@ -158,8 +164,7 @@ export default function HomePage() {
       companyPhone: '',
       contactName: '',
       studentCount: 1,
-      studentName: '',
-      studentClass: '',
+      students: [{ name: '', class: '' }],
       parentName: '',
       parentEmail: '',
       notes: '',
@@ -169,6 +174,7 @@ export default function HomePage() {
   const studentCount = form.watch('studentCount')
   const threshold = parseInt(settings.large_company_threshold, 10)
   const isSondertermin = studentCount >= threshold
+  const effectiveStudentCount = Math.min(studentCount || 1, threshold - 1)
 
   const handleDepartmentSelect = (dept: Department) => {
     setSelectedDepartment(dept)
@@ -683,30 +689,42 @@ export default function HomePage() {
                           </div>
                         )}
 
-                        {/* Student Fields */}
-                        {settings.show_student_fields === 'true' && (
-                          <div className="border-t pt-4">
-                            <h4 className="mb-4 font-medium">Auszubildende/r (optional)</h4>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label htmlFor="studentName">Name des Auszubildenden</Label>
-                                <Input
-                                  id="studentName"
-                                  placeholder="Max Mustermann"
-                                  {...form.register('studentName')}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="studentClass">Klasse</Label>
-                                <Input
-                                  id="studentClass"
-                                  placeholder="z.B. FAI21"
-                                  {...form.register('studentClass')}
-                                />
+                        {/* Student Fields - dynamic based on studentCount */}
+                        {settings.show_student_fields === 'true' &&
+                          !isSondertermin &&
+                          effectiveStudentCount > 0 && (
+                            <div className="border-t pt-4">
+                              <h4 className="mb-4 font-medium">
+                                Auszubildende ({effectiveStudentCount}) - optional
+                              </h4>
+                              <div className="space-y-4">
+                                {Array.from({ length: effectiveStudentCount }).map((_, index) => (
+                                  <div key={index} className="grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`student-name-${index}`}>
+                                        Name {effectiveStudentCount > 1 ? `#${index + 1}` : ''}
+                                      </Label>
+                                      <Input
+                                        id={`student-name-${index}`}
+                                        placeholder="Max Mustermann"
+                                        {...form.register(`students.${index}.name`)}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`student-class-${index}`}>
+                                        Klasse {effectiveStudentCount > 1 ? `#${index + 1}` : ''}
+                                      </Label>
+                                      <Input
+                                        id={`student-class-${index}`}
+                                        placeholder="z.B. FAI21"
+                                        {...form.register(`students.${index}.class`)}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {/* Parent Fields */}
                         {settings.show_parent_fields === 'true' && (

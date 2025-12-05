@@ -69,12 +69,12 @@ cd /app/packages/database
 prisma migrate deploy
 
 # Seed database only on first run (check if teachers table has any rows)
-# Prisma client is in the deployed API's node_modules
-PRISMA_PATH="/app/api-prod/node_modules/@terminverwaltung/database/node_modules/.prisma/client"
+# Prisma client is generated in /app/packages/database/node_modules
+cd /app/packages/database
 
 echo "Checking if database needs seeding..."
 TEACHER_COUNT=$(node -e "
-  const { PrismaClient } = require('${PRISMA_PATH}');
+  const { PrismaClient } = require('@prisma/client');
   const prisma = new PrismaClient();
   prisma.teacher.count()
     .then(c => { console.log(c); return prisma.\$disconnect(); })
@@ -86,8 +86,8 @@ echo "Found $TEACHER_COUNT teachers in database"
 
 if [ "$TEACHER_COUNT" = "0" ] || [ -z "$TEACHER_COUNT" ]; then
   echo "Seeding database (first run)..."
-  node <<SEED_EOF
-const { PrismaClient } = require('${PRISMA_PATH}');
+  node <<'SEED_EOF'
+const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 const prisma = new PrismaClient();
 
@@ -135,7 +135,7 @@ async function seed() {
   }
   console.log('  Created 6 settings');
   
-  await prisma.\$disconnect();
+  await prisma.$disconnect();
   console.log('Seeding completed!');
 }
 

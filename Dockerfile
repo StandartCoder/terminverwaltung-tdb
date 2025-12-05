@@ -85,6 +85,9 @@ COPY --from=builder /prod/api ./api-prod
 # Copy Prisma schema and migrations for runtime
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
 
+# Generate Prisma client in a known location for seeding
+RUN cd /app/packages/database && npm install @prisma/client@6.0.1 && prisma generate
+
 # Copy scripts and configuration
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 COPY scripts/cron-reminders.sh /app/scripts/cron-reminders.sh

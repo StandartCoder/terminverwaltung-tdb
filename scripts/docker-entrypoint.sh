@@ -13,30 +13,32 @@ if [ -f /app/.env ]; then
   set +a
 fi
 
-# Set defaults
-export POSTGRES_USER="${POSTGRES_USER:-postgres}"
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
-export POSTGRES_DB="${POSTGRES_DB:-terminverwaltung}"
-export DATABASE_URL="${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}?schema=public}"
+# Parse DATABASE_URL to extract credentials for PostgreSQL init
+# Format: postgresql://user:password@host:port/database?schema=public
+if [ -n "$DATABASE_URL" ]; then
+  DB_USER=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+  DB_PASS=$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+  DB_NAME=$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
+else
+  DB_USER="postgres"
+  DB_PASS="postgres"
+  DB_NAME="terminverwaltung"
+  export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}?schema=public"
+fi
+
+export NODE_ENV=production
 export PORT_WEB="${PORT_WEB:-3000}"
 export PORT_API="${PORT_API:-3001}"
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${PORT_API}}"
-export CRON_SECRET="${CRON_SECRET:-$(openssl rand -hex 16)}"
 
-# Export for child processes
-export DATABASE_URL
-export NODE_ENV=production
-
-echo "Database URL: postgresql://${POSTGRES_USER}:***@localhost:5432/${POSTGRES_DB}"
-echo "Web Port: ${PORT_WEB}"
-echo "API Port: ${PORT_API}"
+echo "Database: $DB_NAME (user: $DB_USER)"
+echo "Web Port: $PORT_WEB"
+echo "API Port: $PORT_API"
 
 # Initialize PostgreSQL if needed
 if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
   echo "Initializing PostgreSQL database..."
   su-exec postgres initdb -D /var/lib/postgresql/data --auth=trust --encoding=UTF8
   
-  # Configure PostgreSQL
   echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
   echo "listen_addresses='*'" >> /var/lib/postgresql/data/postgresql.conf
 fi
@@ -52,11 +54,10 @@ until su-exec postgres pg_isready -q; do
 done
 echo "PostgreSQL is ready!"
 
-# Create database and user if needed
-su-exec postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'" | grep -q 1 || \
-  su-exec postgres psql -c "CREATE DATABASE ${POSTGRES_DB};"
-
-su-exec postgres psql -c "ALTER USER ${POSTGRES_USER} WITH PASSWORD '${POSTGRES_PASSWORD}';" 2>/dev/null || true
+# Create database and set password
+su-exec postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
+  su-exec postgres psql -c "CREATE DATABASE ${DB_NAME};"
+su-exec postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
 
 # Run Prisma migrations
 echo "Running database migrations..."
@@ -65,6 +66,4 @@ npx prisma migrate deploy
 cd /app
 
 echo "Starting application services..."
-
-# Start supervisor to manage all processes
 exec supervisord -n -c /etc/supervisor/conf.d/supervisord.conf

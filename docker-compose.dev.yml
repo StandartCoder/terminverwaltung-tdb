@@ -1,0 +1,65 @@
+# =============================================================================
+# Terminverwaltung - Development Docker Compose
+# =============================================================================
+#
+# For local development with hot-reload, mailpit for email testing
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Services:
+#   - postgres: Database on port 5432
+#   - mailpit: Email testing on port 8025 (web) and 1025 (smtp)
+#   - redis: Cache on port 6379 (optional, for future use)
+#
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: terminverwaltung-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: terminverwaltung
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: terminverwaltung-mail
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  redis:
+    image: redis:7-alpine
+    container_name: terminverwaltung-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: terminverwaltung_dev_postgres
+  redis_data:
+    name: terminverwaltung_dev_redis

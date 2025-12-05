@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ['@terminverwaltung/ui', '@terminverwaltung/database'],
-  devIndicators: false,
   reactStrictMode: true,
 }
 

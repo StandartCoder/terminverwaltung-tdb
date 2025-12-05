@@ -1,42 +1,90 @@
+# =============================================================================
+# Terminverwaltung - All-in-One Docker Image
+# Includes: PostgreSQL, API, Web, Cron
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Base with pnpm
+# -----------------------------------------------------------------------------
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.14.2 --activate
 
+# -----------------------------------------------------------------------------
+# Stage 2: Install dependencies
+# -----------------------------------------------------------------------------
 FROM base AS deps
 WORKDIR /app
+
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/validators/package.json ./packages/validators/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/email/package.json ./packages/email/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
+
 RUN pnpm install --frozen-lockfile
 
+# -----------------------------------------------------------------------------
+# Stage 3: Build application
+# -----------------------------------------------------------------------------
 FROM base AS builder
 WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=deps /app/packages/database/node_modules ./packages/database/node_modules
 COPY . .
+
 RUN pnpm db:generate
 RUN pnpm build
 
-FROM base AS web
+# -----------------------------------------------------------------------------
+# Stage 4: Production runtime (all-in-one)
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS runtime
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    postgresql16 \
+    postgresql16-contrib \
+    supervisor \
+    curl \
+    bash \
+    openssl \
+    su-exec \
+    && mkdir -p /var/lib/postgresql/data /run/postgresql /var/log/supervisor /app/logs \
+    && chown -R postgres:postgres /var/lib/postgresql /run/postgresql
+
 WORKDIR /app
-ENV NODE_ENV=production
+
+# Copy built applications
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
-EXPOSE 3000
-ENV PORT=3000
-CMD ["node", "apps/web/server.js"]
-
-FROM base AS api
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/database/node_modules ./packages/database/node_modules
-EXPOSE 3001
-ENV PORT=3001
-CMD ["node", "dist/index.js"]
+COPY --from=builder /app/packages ./packages
+
+# Copy Prisma schema and migrations
+COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
+
+# Copy scripts and configuration
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY scripts/cron-reminders.sh /app/scripts/cron-reminders.sh
+COPY scripts/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+RUN chmod +x /app/docker-entrypoint.sh /app/scripts/cron-reminders.sh
+
+# Expose ports
+EXPOSE 3000 3001 5432
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/ && curl -f http://localhost:3001/api/health || exit 1
+
+# Data volume
+VOLUME ["/var/lib/postgresql/data", "/app/logs"]
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

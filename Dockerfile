@@ -49,6 +49,10 @@ RUN pnpm build
 # Deploy only production deps to a clean directory
 RUN pnpm deploy --filter=@terminverwaltung/api --prod /prod/api
 
+# Copy prisma schema to deployed API and generate client there
+COPY packages/database/prisma /prod/api/node_modules/@terminverwaltung/database/prisma
+RUN cd /prod/api/node_modules/@terminverwaltung/database && npx prisma@6.0.1 generate
+
 # -----------------------------------------------------------------------------
 # Stage 4: Production runtime (all-in-one)
 # -----------------------------------------------------------------------------

@@ -66,7 +66,7 @@ su-exec postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_US
 # Run Prisma migrations
 echo "Running database migrations..."
 cd /app/packages/database
-npx prisma migrate deploy
+prisma migrate deploy
 cd /app
 
 echo "Starting application services..."

@@ -66,6 +66,9 @@ RUN apk add --no-cache \
     && mkdir -p /var/lib/postgresql/data /run/postgresql /var/log/supervisor /app/logs \
     && chown -R postgres:postgres /var/lib/postgresql /run/postgresql /var/log/supervisor
 
+# Install Prisma CLI v6 globally for migrations
+RUN npm install -g prisma@6.0.1
+
 WORKDIR /app
 
 # Copy Next.js standalone (includes its own node_modules for web)

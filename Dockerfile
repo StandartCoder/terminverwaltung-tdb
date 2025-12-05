@@ -46,8 +46,8 @@ COPY turbo.json ./
 RUN pnpm db:generate
 RUN pnpm build
 
-# Prune to production dependencies only
-RUN pnpm prune --prod
+# Deploy only production deps to a clean directory
+RUN pnpm deploy --filter=@terminverwaltung/api --prod /prod/api
 
 # -----------------------------------------------------------------------------
 # Stage 4: Production runtime (all-in-one)
@@ -72,24 +72,8 @@ WORKDIR /app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
-# Copy API dist and its package.json
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-
-# Copy built packages
-COPY --from=builder /app/packages/database/dist ./packages/database/dist
-COPY --from=builder /app/packages/database/package.json ./packages/database/package.json
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder /app/packages/validators/dist ./packages/validators/dist
-COPY --from=builder /app/packages/validators/package.json ./packages/validators/package.json
-COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
-COPY --from=builder /app/packages/auth/package.json ./packages/auth/package.json
-COPY --from=builder /app/packages/email/dist ./packages/email/dist
-COPY --from=builder /app/packages/email/package.json ./packages/email/package.json
-
-# Copy production node_modules (after prune)
-COPY --from=builder /app/node_modules ./node_modules
+# Copy deployed API (includes node_modules with correct versions)
+COPY --from=builder /prod/api ./api-prod
 
 # Copy Prisma schema and migrations for runtime
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma

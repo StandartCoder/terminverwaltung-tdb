@@ -34,7 +34,7 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
-# Copy all node_modules (root + packages) from deps stage
+# Copy all from deps stage (includes node_modules)
 COPY --from=deps /app ./
 
 # Copy source code
@@ -42,6 +42,7 @@ COPY apps ./apps
 COPY packages ./packages
 COPY turbo.json ./
 
+# Generate Prisma client and build everything
 RUN pnpm db:generate
 RUN pnpm build
 
@@ -64,18 +65,30 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy the entire built workspace for API (needs node_modules with workspace links)
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/api ./apps/api
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# Copy Next.js standalone (includes its own node_modules)
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
-# Copy Next.js standalone build (into separate directory to not conflict)
-COPY --from=builder /app/apps/web/.next/standalone/apps/web ./web-standalone
-COPY --from=builder /app/apps/web/.next/static ./web-standalone/.next/static
+# Copy API dist
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
-# Copy Prisma schema and migrations
+# For API: copy built packages (not .ts source)
+COPY --from=builder /app/packages/database/dist ./packages/database/dist
+COPY --from=builder /app/packages/database/package.json ./packages/database/package.json
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/validators/dist ./packages/validators/dist
+COPY --from=builder /app/packages/validators/package.json ./packages/validators/package.json
+COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
+COPY --from=builder /app/packages/auth/package.json ./packages/auth/package.json
+COPY --from=builder /app/packages/email/dist ./packages/email/dist
+COPY --from=builder /app/packages/email/package.json ./packages/email/package.json
+
+# Copy Prisma client (generated in node_modules)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy Prisma schema and migrations for runtime
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
 
 # Copy scripts and configuration

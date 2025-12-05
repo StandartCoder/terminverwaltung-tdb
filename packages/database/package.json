@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "import": "./dist/index.js"
     }
   },
   "scripts": {
+    "build": "tsup src/index.ts --format esm",
     "db:generate": "prisma generate",
     "db:push": "dotenv -e ../../.env -- prisma db push",
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
@@ -28,6 +29,7 @@
     "@terminverwaltung/typescript-config": "workspace:*",
     "dotenv-cli": "^8.0.0",
     "prisma": "^6.0.1",
+    "tsup": "^8.3.5",
     "tsx": "^4.19.2"
   }
 }

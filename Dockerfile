@@ -60,7 +60,7 @@ RUN apk add --no-cache \
     openssl \
     su-exec \
     && mkdir -p /var/lib/postgresql/data /run/postgresql /var/log/supervisor /app/logs \
-    && chown -R postgres:postgres /var/lib/postgresql /run/postgresql
+    && chown -R postgres:postgres /var/lib/postgresql /run/postgresql /var/log/supervisor
 
 WORKDIR /app
 

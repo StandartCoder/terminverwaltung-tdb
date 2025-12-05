@@ -45,7 +45,7 @@ fi
 
 # Start PostgreSQL
 echo "Starting PostgreSQL..."
-su-exec postgres pg_ctl -D /var/lib/postgresql/data -l /var/log/supervisor/postgresql.log start -w
+su-exec postgres pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/postgresql.log start -w
 
 # Wait for PostgreSQL
 until su-exec postgres pg_isready -q; do

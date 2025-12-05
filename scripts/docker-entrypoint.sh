@@ -94,7 +94,7 @@ const prisma = new PrismaClient();
 async function seed() {
   const hash = (p) => crypto.createHash('sha256').update(p).digest('hex');
   
-  // Departments
+  // Departments (upsert to be idempotent)
   const depts = [
     { name: 'Fachinformatiker/in', shortCode: 'IT', color: '#3B82F6' },
     { name: 'KFZ-Mechatroniker/in', shortCode: 'KFZ', color: '#EF4444' },
@@ -104,13 +104,19 @@ async function seed() {
     { name: 'Wasserbauer/in', shortCode: 'WB', color: '#1479b8' },
   ];
   for (const d of depts) {
-    await prisma.department.create({ data: d });
+    await prisma.department.upsert({
+      where: { name: d.name },
+      update: {},
+      create: d,
+    });
   }
-  console.log('  Created 6 departments');
+  console.log('  Created/verified 6 departments');
   
-  // Admin
-  await prisma.teacher.create({
-    data: {
+  // Admin (upsert)
+  await prisma.teacher.upsert({
+    where: { email: 'admin@osz-teltow.de' },
+    update: {},
+    create: {
       email: 'admin@osz-teltow.de',
       passwordHash: hash('admin123'),
       firstName: 'Admin',
@@ -119,9 +125,9 @@ async function seed() {
       mustChangePassword: true,
     },
   });
-  console.log('  Created admin: admin@osz-teltow.de / admin123');
+  console.log('  Created/verified admin: admin@osz-teltow.de / admin123');
   
-  // Settings
+  // Settings (upsert)
   const settings = [
     { key: 'school_name', value: 'OSZ-Teltow', description: 'Name der Schule' },
     { key: 'school_email', value: 'info@osz-teltow.de', description: 'E-Mail der Schule' },
@@ -131,9 +137,13 @@ async function seed() {
     { key: 'large_company_threshold', value: '5', description: 'Ab dieser Azubi-Anzahl: Sondertermine' },
   ];
   for (const s of settings) {
-    await prisma.setting.create({ data: s });
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    });
   }
-  console.log('  Created 6 settings');
+  console.log('  Created/verified 6 settings');
   
   await prisma.$disconnect();
   console.log('Seeding completed!');

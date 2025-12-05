@@ -86,7 +86,7 @@ COPY --from=builder /prod/api ./api-prod
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
 
 # Generate Prisma client in a known location for seeding
-RUN cd /app/packages/database && npm install @prisma/client@6.0.1 && prisma generate
+RUN cd /app/packages/database && npm init -y && npm install @prisma/client@6.0.1 && prisma generate
 
 # Copy scripts and configuration
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh

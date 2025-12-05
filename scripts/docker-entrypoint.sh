@@ -67,6 +67,75 @@ su-exec postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_US
 echo "Running database migrations..."
 cd /app/packages/database
 prisma migrate deploy
+
+# Seed database only on first run (check if teachers table has any rows)
+cd /app/api-prod
+TEACHER_COUNT=$(node -e "
+  const { PrismaClient } = require('@prisma/client');
+  const prisma = new PrismaClient();
+  prisma.teacher.count().then(c => { console.log(c); prisma.\$disconnect(); }).catch(() => { console.log('0'); });
+" 2>/dev/null)
+
+if [ "$TEACHER_COUNT" = "0" ]; then
+  echo "Seeding database (first run)..."
+  node -e "
+    const { PrismaClient } = require('@prisma/client');
+    const crypto = require('crypto');
+    const prisma = new PrismaClient();
+    
+    async function seed() {
+      const hash = (p) => crypto.createHash('sha256').update(p).digest('hex');
+      
+      // Departments
+      const depts = [
+        { name: 'Fachinformatiker/in', shortCode: 'IT', color: '#3B82F6' },
+        { name: 'KFZ-Mechatroniker/in', shortCode: 'KFZ', color: '#EF4444' },
+        { name: 'Elektrotechniker/in', shortCode: 'ET', color: '#10B981' },
+        { name: 'Mediengestalter/in', shortCode: 'MG', color: '#F59E0B' },
+        { name: 'Anlagenmechaniker/in', shortCode: 'AN', color: '#8B5CF6' },
+        { name: 'Wasserbauer/in', shortCode: 'WB', color: '#1479b8' },
+      ];
+      for (const d of depts) {
+        await prisma.department.create({ data: d });
+      }
+      console.log('  Created 6 departments');
+      
+      // Admin
+      await prisma.teacher.create({
+        data: {
+          email: 'admin@osz-teltow.de',
+          passwordHash: hash('admin123'),
+          firstName: 'Admin',
+          lastName: 'User',
+          isAdmin: true,
+          mustChangePassword: true,
+        },
+      });
+      console.log('  Created admin: admin@osz-teltow.de / admin123');
+      
+      // Settings
+      const settings = [
+        { key: 'school_name', value: 'OSZ-Teltow', description: 'Name der Schule' },
+        { key: 'school_email', value: 'info@osz-teltow.de', description: 'E-Mail der Schule' },
+        { key: 'booking_enabled', value: 'true', description: 'Buchungen aktiviert' },
+        { key: 'email_notifications', value: 'true', description: 'E-Mail Benachrichtigungen aktiv' },
+        { key: 'slot_duration_minutes', value: '20', description: 'Standard Terminlänge in Minuten' },
+        { key: 'large_company_threshold', value: '5', description: 'Ab dieser Azubi-Anzahl: Sondertermine' },
+      ];
+      for (const s of settings) {
+        await prisma.setting.create({ data: s });
+      }
+      console.log('  Created 6 settings');
+      
+      await prisma.\$disconnect();
+      console.log('Seeding completed!');
+    }
+    seed().catch(e => { console.error(e); process.exit(1); });
+  "
+else
+  echo "Database already seeded ($TEACHER_COUNT teachers found), skipping..."
+fi
+
 cd /app
 
 echo "Starting application services..."

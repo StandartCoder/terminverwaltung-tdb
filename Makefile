@@ -2,7 +2,7 @@
 # Terminverwaltung - Makefile
 # =============================================================================
 
-.PHONY: help dev dev-services dev-stop build docker-up docker-down docker-logs \
+.PHONY: help dev dev-services dev-stop build docker-up docker-down docker-restart docker-reset docker-logs \
         docker-shell db-migrate db-seed db-studio setup gen-secrets clean clean-docker
 
 # Default target
@@ -25,8 +25,10 @@ help:
 	@echo "    make db-studio      Open Prisma Studio"
 	@echo ""
 	@echo "  Docker (Production):"
-	@echo "    make docker-up      Build and start container"
-	@echo "    make docker-down    Stop container"
+	@echo "    make docker-up      Build and start (keeps data)"
+	@echo "    make docker-down    Stop container (keeps data)"
+	@echo "    make docker-restart Rebuild and restart (keeps data)"
+	@echo "    make docker-reset   Stop, DELETE ALL DATA, and restart fresh"
 	@echo "    make docker-logs    View logs"
 	@echo "    make docker-shell   Shell into container"
 	@echo ""
@@ -80,6 +82,12 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+docker-restart:
+	docker compose down && docker compose up -d --build
+
+docker-reset:
+	docker compose down -v && docker compose up -d --build
 
 docker-logs:
 	docker compose logs -f

@@ -71,11 +71,15 @@ prisma migrate deploy
 # Seed database only on first run (check if teachers table has any rows)
 cd /app/api-prod
 echo "Checking if database needs seeding..."
-TEACHER_COUNT=$(node -e "
+TEACHER_COUNT=$(node -p "
   const { PrismaClient } = require('@prisma/client');
   const prisma = new PrismaClient();
-  prisma.teacher.count().then(c => { console.log(c); return prisma.\\\$disconnect(); }).catch(() => { console.log('0'); });
-" 2>&1 | tail -1)
+  prisma.teacher.count().then(c => { prisma.\$disconnect(); return c; });
+" 2>/dev/null || echo "0")
+
+# Extract just the number (in case there's extra output)
+TEACHER_COUNT=$(echo "$TEACHER_COUNT" | grep -o '^[0-9]*' | head -1)
+TEACHER_COUNT=${TEACHER_COUNT:-0}
 
 echo "Found $TEACHER_COUNT teachers in database"
 

@@ -46,6 +46,9 @@ COPY turbo.json ./
 RUN pnpm db:generate
 RUN pnpm build
 
+# Prune to production dependencies only
+RUN pnpm prune --prod
+
 # -----------------------------------------------------------------------------
 # Stage 4: Production runtime (all-in-one)
 # -----------------------------------------------------------------------------
@@ -65,14 +68,15 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy Next.js standalone (includes its own node_modules)
+# Copy Next.js standalone (includes its own node_modules for web)
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
-# Copy API dist
+# Copy API dist and its package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
-# For API: copy built packages (not .ts source)
+# Copy built packages
 COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/database/package.json ./packages/database/package.json
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -84,9 +88,8 @@ COPY --from=builder /app/packages/auth/package.json ./packages/auth/package.json
 COPY --from=builder /app/packages/email/dist ./packages/email/dist
 COPY --from=builder /app/packages/email/package.json ./packages/email/package.json
 
-# Copy Prisma client (generated in node_modules)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy production node_modules (after prune)
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy Prisma schema and migrations for runtime
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma

@@ -35,7 +35,7 @@ CREATE TABLE "teachers" (
     "mustChangePassword" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "departmentId" TEXT NOT NULL,
+    "departmentId" TEXT,
 
     CONSTRAINT "teachers_pkey" PRIMARY KEY ("id")
 );
@@ -64,8 +64,7 @@ CREATE TABLE "bookings" (
     "companyPhone" TEXT,
     "contactName" TEXT,
     "studentCount" INTEGER NOT NULL DEFAULT 1,
-    "studentName" TEXT,
-    "studentClass" TEXT,
+    "students" JSONB,
     "parentName" TEXT,
     "parentEmail" TEXT,
     "notes" TEXT,
@@ -178,7 +177,7 @@ CREATE INDEX "email_logs_status_idx" ON "email_logs"("status");
 CREATE UNIQUE INDEX "settings_key_key" ON "settings"("key");
 
 -- AddForeignKey
-ALTER TABLE "teachers" ADD CONSTRAINT "teachers_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "teachers" ADD CONSTRAINT "teachers_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "time_slots" ADD CONSTRAINT "time_slots_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "teachers"("id") ON DELETE CASCADE ON UPDATE CASCADE;

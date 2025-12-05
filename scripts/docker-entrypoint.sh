@@ -54,10 +54,14 @@ until su-exec postgres pg_isready -q; do
 done
 echo "PostgreSQL is ready!"
 
-# Create database and set password
+# Create database and user
+echo "Setting up database..."
+su-exec postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'" | grep -q 1 || \
+  su-exec postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}' SUPERUSER;"
 su-exec postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
-  su-exec postgres psql -c "CREATE DATABASE ${DB_NAME};"
+  su-exec postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
 su-exec postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
+su-exec postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
 
 # Run Prisma migrations
 echo "Running database migrations..."

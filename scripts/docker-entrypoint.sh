@@ -135,7 +135,7 @@ async function seed() {
   }
   console.log('  Created 6 settings');
   
-  await prisma.$disconnect();
+  await prisma.\$disconnect();
   console.log('Seeding completed!');
 }
 

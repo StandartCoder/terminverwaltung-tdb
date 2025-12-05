@@ -34,8 +34,13 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy all node_modules (root + packages) from deps stage
+COPY --from=deps /app ./
+
+# Copy source code
+COPY apps ./apps
+COPY packages ./packages
+COPY turbo.json ./
 
 RUN pnpm db:generate
 RUN pnpm build

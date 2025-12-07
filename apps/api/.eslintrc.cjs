@@ -9,6 +9,7 @@ module.exports = {
   parserOptions: {
     project,
   },
+  ignorePatterns: ['vitest.config.ts'],
   settings: {
     'import/resolver': {
       typescript: {

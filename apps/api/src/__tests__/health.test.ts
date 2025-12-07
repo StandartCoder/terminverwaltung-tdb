@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
-import { Hono } from 'hono'
-import { healthRouter } from '../routes/health'
 import { db } from '@terminverwaltung/database'
+import { Hono } from 'hono'
+import { describe, it, expect, vi } from 'vitest'
+import { healthRouter } from '../routes/health'
 
 interface HealthResponse {
   status: string

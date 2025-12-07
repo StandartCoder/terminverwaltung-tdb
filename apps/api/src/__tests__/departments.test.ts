@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Hono } from 'hono'
-import { departmentsRouter } from '../routes/departments'
 import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
+import { Hono } from 'hono'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { departmentsRouter } from '../routes/departments'
 
-interface Department {
+interface DepartmentWithCount {
   id: string
   name: string
   shortCode: string
@@ -12,6 +12,7 @@ interface Department {
   createdAt: Date
   updatedAt: Date
   _count?: { teachers: number }
+  teachers?: { id: string; firstName: string; lastName: string; room: string | null }[]
 }
 
 interface ApiResponse<T = unknown> {
@@ -23,7 +24,7 @@ interface ApiResponse<T = unknown> {
 const app = new Hono()
 app.route('/api/departments', departmentsRouter)
 
-const mockDepartments: Department[] = [
+const mockDepartments: DepartmentWithCount[] = [
   {
     id: 'dept-1',
     name: 'Fachinformatiker/in',
@@ -51,13 +52,13 @@ describe('Departments Routes', () => {
 
   describe('GET /api/departments', () => {
     it('returns all departments ordered by name', async () => {
-      vi.mocked(db.department.findMany).mockResolvedValueOnce(mockDepartments)
+      vi.mocked(db.department.findMany).mockResolvedValueOnce(mockDepartments as never)
 
       const res = await app.request('/api/departments')
 
       expect(res.status).toBe(200)
 
-      const body = (await res.json()) as ApiResponse<Department[]>
+      const body = (await res.json()) as ApiResponse<DepartmentWithCount[]>
       expect(body.data).toHaveLength(2)
       expect(body.data![0].name).toBe('Fachinformatiker/in')
       expect(body.data![0]._count?.teachers).toBe(5)
@@ -75,24 +76,24 @@ describe('Departments Routes', () => {
 
       expect(res.status).toBe(200)
 
-      const body = (await res.json()) as ApiResponse<Department[]>
+      const body = (await res.json()) as ApiResponse<DepartmentWithCount[]>
       expect(body.data).toEqual([])
     })
   })
 
   describe('GET /api/departments/:id', () => {
     it('returns department with teachers when found', async () => {
-      const deptWithTeachers = {
+      const deptWithTeachers: DepartmentWithCount = {
         ...mockDepartments[0],
         teachers: [{ id: 't1', firstName: 'Max', lastName: 'Mustermann', room: 'A101' }],
       }
-      vi.mocked(db.department.findUnique).mockResolvedValueOnce(deptWithTeachers)
+      vi.mocked(db.department.findUnique).mockResolvedValueOnce(deptWithTeachers as never)
 
       const res = await app.request('/api/departments/dept-1')
 
       expect(res.status).toBe(200)
 
-      const body = (await res.json()) as ApiResponse<typeof deptWithTeachers>
+      const body = (await res.json()) as ApiResponse<DepartmentWithCount>
       expect(body.data!.id).toBe('dept-1')
       expect(body.data!.teachers).toHaveLength(1)
     })
@@ -112,7 +113,7 @@ describe('Departments Routes', () => {
   describe('POST /api/departments', () => {
     it('creates department successfully', async () => {
       vi.mocked(db.department.findFirst).mockResolvedValueOnce(null)
-      vi.mocked(db.department.create).mockResolvedValueOnce(mockDepartments[0])
+      vi.mocked(db.department.create).mockResolvedValueOnce(mockDepartments[0] as never)
 
       const res = await app.request('/api/departments', {
         method: 'POST',
@@ -126,12 +127,12 @@ describe('Departments Routes', () => {
 
       expect(res.status).toBe(HTTP_STATUS.CREATED)
 
-      const body = (await res.json()) as ApiResponse<Department>
+      const body = (await res.json()) as ApiResponse<DepartmentWithCount>
       expect(body.data!.name).toBe('Fachinformatiker/in')
     })
 
     it('returns 409 when department name already exists', async () => {
-      vi.mocked(db.department.findFirst).mockResolvedValueOnce(mockDepartments[0])
+      vi.mocked(db.department.findFirst).mockResolvedValueOnce(mockDepartments[0] as never)
 
       const res = await app.request('/api/departments', {
         method: 'POST',
@@ -175,12 +176,12 @@ describe('Departments Routes', () => {
 
   describe('PATCH /api/departments/:id', () => {
     it('updates department successfully', async () => {
-      vi.mocked(db.department.findUnique).mockResolvedValueOnce(mockDepartments[0])
+      vi.mocked(db.department.findUnique).mockResolvedValueOnce(mockDepartments[0] as never)
       vi.mocked(db.department.findFirst).mockResolvedValueOnce(null)
       vi.mocked(db.department.update).mockResolvedValueOnce({
         ...mockDepartments[0],
         name: 'Updated Name',
-      })
+      } as never)
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'PATCH',
@@ -190,7 +191,7 @@ describe('Departments Routes', () => {
 
       expect(res.status).toBe(200)
 
-      const body = (await res.json()) as ApiResponse<Department>
+      const body = (await res.json()) as ApiResponse<DepartmentWithCount>
       expect(body.data!.name).toBe('Updated Name')
     })
 
@@ -207,8 +208,8 @@ describe('Departments Routes', () => {
     })
 
     it('returns 409 when updating to existing name', async () => {
-      vi.mocked(db.department.findUnique).mockResolvedValueOnce(mockDepartments[0])
-      vi.mocked(db.department.findFirst).mockResolvedValueOnce(mockDepartments[1])
+      vi.mocked(db.department.findUnique).mockResolvedValueOnce(mockDepartments[0] as never)
+      vi.mocked(db.department.findFirst).mockResolvedValueOnce(mockDepartments[1] as never)
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'PATCH',
@@ -222,11 +223,12 @@ describe('Departments Routes', () => {
 
   describe('DELETE /api/departments/:id', () => {
     it('deletes department successfully when no teachers assigned', async () => {
-      vi.mocked(db.department.findUnique).mockResolvedValueOnce({
+      const deptNoTeachers: DepartmentWithCount = {
         ...mockDepartments[0],
         _count: { teachers: 0 },
-      })
-      vi.mocked(db.department.delete).mockResolvedValueOnce(mockDepartments[0])
+      }
+      vi.mocked(db.department.findUnique).mockResolvedValueOnce(deptNoTeachers as never)
+      vi.mocked(db.department.delete).mockResolvedValueOnce(mockDepartments[0] as never)
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'DELETE',
@@ -249,10 +251,11 @@ describe('Departments Routes', () => {
     })
 
     it('returns 409 when department has teachers', async () => {
-      vi.mocked(db.department.findUnique).mockResolvedValueOnce({
+      const deptWithTeachers: DepartmentWithCount = {
         ...mockDepartments[0],
         _count: { teachers: 5 },
-      })
+      }
+      vi.mocked(db.department.findUnique).mockResolvedValueOnce(deptWithTeachers as never)
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'DELETE',

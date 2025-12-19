@@ -1,9 +1,10 @@
 import { serve } from '@hono/node-server'
-import { ERROR_CODES, HTTP_STATUS } from '@terminverwaltung/shared'
+import { ERROR_CODES, HTTP_STATUS, isAppError } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { bookingsRouter } from './routes/bookings'
 import { cronRouter } from './routes/cron'
 import { departmentsRouter } from './routes/departments'
@@ -46,14 +47,8 @@ app.notFound((c) =>
 app.onError((err, c) => {
   console.error('Unhandled error:', err)
 
-  if (err.message.includes(':')) {
-    const [code, message] = err.message.split(':')
-    if (code === 'NOT_FOUND') {
-      return c.json({ error: ERROR_CODES.NOT_FOUND, message }, HTTP_STATUS.NOT_FOUND)
-    }
-    if (code === 'SLOT_ALREADY_BOOKED') {
-      return c.json({ error: ERROR_CODES.SLOT_ALREADY_BOOKED, message }, HTTP_STATUS.CONFLICT)
-    }
+  if (isAppError(err)) {
+    return c.json(err.toJSON(), err.statusCode as ContentfulStatusCode)
   }
 
   return c.json(
@@ -64,9 +59,10 @@ app.onError((err, c) => {
 
 const port = Number(process.env.PORT) || 3001
 
-console.log(`API server starting on port ${port}`)
-
-serve({ fetch: app.fetch, port })
+if (process.env.NODE_ENV !== 'test') {
+  console.log(`API server starting on port ${port}`)
+  serve({ fetch: app.fetch, port })
+}
 
 export default app
 export type AppType = typeof app

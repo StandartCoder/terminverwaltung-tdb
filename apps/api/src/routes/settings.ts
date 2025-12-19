@@ -3,6 +3,7 @@ import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { requireAdmin } from '../middleware/auth'
 import { getAllSettings, getPublicSettings, invalidateSettingsCache } from '../services/settings'
 
 export const settingsRouter = new Hono()
@@ -14,7 +15,7 @@ settingsRouter.get('/public', async (c) => {
 })
 
 // All settings with defaults merged (for admin)
-settingsRouter.get('/', async (c) => {
+settingsRouter.get('/', requireAdmin, async (c) => {
   const settings = await db.setting.findMany({
     orderBy: { key: 'asc' },
   })
@@ -24,7 +25,7 @@ settingsRouter.get('/', async (c) => {
   return c.json({ data: settings, map: settingsMap })
 })
 
-settingsRouter.get('/:key', async (c) => {
+settingsRouter.get('/:key', requireAdmin, async (c) => {
   const key = c.req.param('key')
 
   const setting = await db.setting.findUnique({ where: { key } })
@@ -45,7 +46,7 @@ const upsertSettingSchema = z.object({
   description: z.string().optional(),
 })
 
-settingsRouter.put('/', zValidator('json', upsertSettingSchema), async (c) => {
+settingsRouter.put('/', requireAdmin, zValidator('json', upsertSettingSchema), async (c) => {
   const body = c.req.valid('json')
 
   const setting = await db.setting.upsert({
@@ -74,7 +75,7 @@ const bulkUpdateSchema = z.object({
   ),
 })
 
-settingsRouter.put('/bulk', zValidator('json', bulkUpdateSchema), async (c) => {
+settingsRouter.put('/bulk', requireAdmin, zValidator('json', bulkUpdateSchema), async (c) => {
   const { settings } = c.req.valid('json')
 
   const results = await Promise.all(
@@ -91,7 +92,7 @@ settingsRouter.put('/bulk', zValidator('json', bulkUpdateSchema), async (c) => {
   return c.json({ data: results })
 })
 
-settingsRouter.delete('/:key', async (c) => {
+settingsRouter.delete('/:key', requireAdmin, async (c) => {
   const key = c.req.param('key')
 
   const existing = await db.setting.findUnique({ where: { key } })

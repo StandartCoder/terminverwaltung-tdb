@@ -1,5 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
-import { hashPassword, verifyPassword } from '@terminverwaltung/auth'
+import {
+  hashPassword,
+  verifyPassword,
+  generateTokenPair,
+  verifyRefreshToken,
+} from '@terminverwaltung/auth'
 import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import {
@@ -9,17 +14,28 @@ import {
   idSchema,
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { z } from 'zod'
+import { requireAuth, requireAdmin, requireSelfOrAdmin } from '../middleware/auth'
 import { getSettingNumber, getSettingBoolean } from '../services/settings'
 
 export const teachersRouter = new Hono()
 
-// Helper to validate password length against setting
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/',
+}
+
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 // 15 minutes
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 // 7 days
+
 async function validatePasswordLength(
   password: string
 ): Promise<{ valid: boolean; minLength: number }> {
   const minLength = await getSettingNumber('min_password_length')
-  const effectiveMinLength = minLength > 0 ? minLength : 6 // fallback to 6
+  const effectiveMinLength = minLength > 0 ? minLength : 6
   return {
     valid: password.length >= effectiveMinLength,
     minLength: effectiveMinLength,
@@ -46,7 +62,7 @@ const querySchema = z.object({
   active: z.coerce.boolean().optional(),
 })
 
-teachersRouter.get('/', zValidator('query', querySchema), async (c) => {
+teachersRouter.get('/', requireAuth, zValidator('query', querySchema), async (c) => {
   const { departmentId, active } = c.req.valid('query')
 
   const teachers = await db.teacher.findMany({
@@ -61,7 +77,25 @@ teachersRouter.get('/', zValidator('query', querySchema), async (c) => {
   return c.json({ data: teachers })
 })
 
-teachersRouter.get('/:id', async (c) => {
+teachersRouter.get('/me', requireAuth, async (c) => {
+  const user = c.get('user')
+
+  const teacher = await db.teacher.findUnique({
+    where: { id: user.sub },
+    select: teacherSelectPublic,
+  })
+
+  if (!teacher) {
+    return c.json(
+      { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
+      HTTP_STATUS.NOT_FOUND
+    )
+  }
+
+  return c.json({ data: teacher })
+})
+
+teachersRouter.get('/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
 
   const teacher = await db.teacher.findUnique({
@@ -87,7 +121,7 @@ teachersRouter.get('/:id', async (c) => {
   return c.json({ data: teacher })
 })
 
-teachersRouter.get('/:id/timeslots', async (c) => {
+teachersRouter.get('/:id/timeslots', requireAuth, async (c) => {
   const id = c.req.param('id')
   const date = c.req.query('date')
 
@@ -115,7 +149,7 @@ teachersRouter.get('/:id/timeslots', async (c) => {
   return c.json({ data: timeSlots })
 })
 
-teachersRouter.get('/:id/bookings', async (c) => {
+teachersRouter.get('/:id/bookings', requireSelfOrAdmin, async (c) => {
   const id = c.req.param('id')
   const status = c.req.query('status')
 
@@ -141,10 +175,9 @@ teachersRouter.get('/:id/bookings', async (c) => {
   return c.json({ data: bookings })
 })
 
-teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
+teachersRouter.post('/', requireAdmin, zValidator('json', createTeacherSchema), async (c) => {
   const body = c.req.valid('json')
 
-  // Validate password length against setting
   const passwordCheck = await validatePasswordLength(body.password)
   if (!passwordCheck.valid) {
     return c.json(
@@ -174,13 +207,13 @@ teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
     }
   }
 
-  // Check if new teachers must change password
   const requirePasswordChange = await getSettingBoolean('require_password_change')
+  const passwordHash = await hashPassword(body.password)
 
   const teacher = await db.teacher.create({
     data: {
       email: body.email,
-      passwordHash: hashPassword(body.password),
+      passwordHash,
       firstName: body.firstName,
       lastName: body.lastName,
       room: body.room,
@@ -202,7 +235,15 @@ teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) 
     include: { department: true },
   })
 
-  if (!teacher || !verifyPassword(password, teacher.passwordHash)) {
+  if (!teacher) {
+    return c.json(
+      { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
+      HTTP_STATUS.UNAUTHORIZED
+    )
+  }
+
+  const isValidPassword = await verifyPassword(password, teacher.passwordHash)
+  if (!isValidPassword) {
     return c.json(
       { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
       HTTP_STATUS.UNAUTHORIZED
@@ -216,8 +257,84 @@ teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) 
     )
   }
 
+  const tokens = generateTokenPair({
+    sub: teacher.id,
+    email: teacher.email,
+    isAdmin: teacher.isAdmin,
+  })
+
+  setCookie(c, 'access_token', tokens.accessToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: ACCESS_TOKEN_MAX_AGE,
+  })
+
+  setCookie(c, 'refresh_token', tokens.refreshToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+  })
+
   const { passwordHash: _hash, ...teacherData } = teacher
-  return c.json({ data: teacherData })
+  return c.json({
+    data: { teacher: teacherData },
+  })
+})
+
+teachersRouter.post('/refresh', async (c) => {
+  const refreshToken = getCookie(c, 'refresh_token')
+
+  if (!refreshToken) {
+    return c.json(
+      { error: ERROR_CODES.UNAUTHORIZED, message: 'Refresh token erforderlich' },
+      HTTP_STATUS.UNAUTHORIZED
+    )
+  }
+
+  try {
+    const payload = verifyRefreshToken(refreshToken)
+
+    const teacher = await db.teacher.findUnique({
+      where: { id: payload.sub },
+    })
+
+    if (!teacher || !teacher.isActive) {
+      return c.json(
+        { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültiger Token' },
+        HTTP_STATUS.UNAUTHORIZED
+      )
+    }
+
+    const tokens = generateTokenPair({
+      sub: teacher.id,
+      email: teacher.email,
+      isAdmin: teacher.isAdmin,
+    })
+
+    setCookie(c, 'access_token', tokens.accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    })
+
+    setCookie(c, 'refresh_token', tokens.refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    })
+
+    const { passwordHash: _hash, ...teacherData } = teacher
+    return c.json({
+      data: { teacher: teacherData },
+    })
+  } catch {
+    return c.json(
+      { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültiger oder abgelaufener Token' },
+      HTTP_STATUS.UNAUTHORIZED
+    )
+  }
+})
+
+teachersRouter.post('/logout', (c) => {
+  deleteCookie(c, 'access_token', { path: '/' })
+  deleteCookie(c, 'refresh_token', { path: '/' })
+  return c.json({ message: 'Erfolgreich abgemeldet' })
 })
 
 const changePasswordSchema = z.object({
@@ -225,134 +342,156 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(1, 'Neues Passwort erforderlich'),
 })
 
-teachersRouter.post('/:id/change-password', zValidator('json', changePasswordSchema), async (c) => {
-  const id = c.req.param('id')
-  const { currentPassword, newPassword } = c.req.valid('json')
+teachersRouter.post(
+  '/:id/change-password',
+  requireSelfOrAdmin,
+  zValidator('json', changePasswordSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const { currentPassword, newPassword } = c.req.valid('json')
 
-  // Validate password length against setting
-  const passwordCheck = await validatePasswordLength(newPassword)
-  if (!passwordCheck.valid) {
-    return c.json(
-      {
-        error: ERROR_CODES.VALIDATION_ERROR,
-        message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+    const passwordCheck = await validatePasswordLength(newPassword)
+    if (!passwordCheck.valid) {
+      return c.json(
+        {
+          error: ERROR_CODES.VALIDATION_ERROR,
+          message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+        },
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+
+    const teacher = await db.teacher.findUnique({ where: { id } })
+    if (!teacher) {
+      return c.json(
+        { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
+
+    const isValidPassword = await verifyPassword(currentPassword, teacher.passwordHash)
+    if (!isValidPassword) {
+      return c.json(
+        { error: ERROR_CODES.UNAUTHORIZED, message: 'Aktuelles Passwort ist falsch' },
+        HTTP_STATUS.UNAUTHORIZED
+      )
+    }
+
+    const newPasswordHash = await hashPassword(newPassword)
+    await db.teacher.update({
+      where: { id },
+      data: {
+        passwordHash: newPasswordHash,
+        mustChangePassword: false,
       },
-      HTTP_STATUS.BAD_REQUEST
-    )
+    })
+
+    return c.json({ message: 'Passwort erfolgreich geändert' })
   }
-
-  const teacher = await db.teacher.findUnique({ where: { id } })
-  if (!teacher) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
-
-  if (!verifyPassword(currentPassword, teacher.passwordHash)) {
-    return c.json(
-      { error: ERROR_CODES.UNAUTHORIZED, message: 'Aktuelles Passwort ist falsch' },
-      HTTP_STATUS.UNAUTHORIZED
-    )
-  }
-
-  await db.teacher.update({
-    where: { id },
-    data: {
-      passwordHash: hashPassword(newPassword),
-      mustChangePassword: false,
-    },
-  })
-
-  return c.json({ message: 'Passwort erfolgreich geändert' })
-})
+)
 
 const setPasswordSchema = z.object({
   newPassword: z.string().min(1, 'Neues Passwort erforderlich'),
 })
 
-teachersRouter.post('/:id/set-password', zValidator('json', setPasswordSchema), async (c) => {
-  const id = c.req.param('id')
-  const { newPassword } = c.req.valid('json')
+teachersRouter.post(
+  '/:id/set-password',
+  requireAdmin,
+  zValidator('json', setPasswordSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const { newPassword } = c.req.valid('json')
 
-  // Validate password length against setting
-  const passwordCheck = await validatePasswordLength(newPassword)
-  if (!passwordCheck.valid) {
-    return c.json(
-      {
-        error: ERROR_CODES.VALIDATION_ERROR,
-        message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+    const passwordCheck = await validatePasswordLength(newPassword)
+    if (!passwordCheck.valid) {
+      return c.json(
+        {
+          error: ERROR_CODES.VALIDATION_ERROR,
+          message: `Passwort muss mindestens ${passwordCheck.minLength} Zeichen haben`,
+        },
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+
+    const teacher = await db.teacher.findUnique({ where: { id } })
+    if (!teacher) {
+      return c.json(
+        { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
+
+    const newPasswordHash = await hashPassword(newPassword)
+    await db.teacher.update({
+      where: { id },
+      data: {
+        passwordHash: newPasswordHash,
+        mustChangePassword: true,
       },
-      HTTP_STATUS.BAD_REQUEST
-    )
+    })
+
+    return c.json({ message: 'Passwort erfolgreich gesetzt' })
   }
+)
 
-  const teacher = await db.teacher.findUnique({ where: { id } })
-  if (!teacher) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
-
-  await db.teacher.update({
-    where: { id },
-    data: {
-      passwordHash: hashPassword(newPassword),
-      mustChangePassword: true,
-    },
-  })
-
-  return c.json({ message: 'Passwort erfolgreich gesetzt' })
-})
-
-// Extend base schema with isActive for PATCH endpoint
 const patchTeacherSchema = updateTeacherSchema.extend({
   isActive: z.boolean().optional(),
 })
 
-teachersRouter.patch('/:id', zValidator('json', patchTeacherSchema), async (c) => {
-  const id = c.req.param('id')
-  const body = c.req.valid('json')
+teachersRouter.patch(
+  '/:id',
+  requireSelfOrAdmin,
+  zValidator('json', patchTeacherSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const body = c.req.valid('json')
+    const user = c.get('user')
 
-  const existing = await db.teacher.findUnique({ where: { id } })
-  if (!existing) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
-
-  if (body.email && body.email !== existing.email) {
-    const emailTaken = await db.teacher.findUnique({ where: { email: body.email } })
-    if (emailTaken) {
-      return c.json(
-        { error: ERROR_CODES.CONFLICT, message: 'E-Mail bereits vergeben' },
-        HTTP_STATUS.CONFLICT
-      )
+    // Non-admins cannot change isAdmin or isActive
+    if (!user.isAdmin) {
+      delete body.isAdmin
+      delete body.isActive
     }
-  }
 
-  if (body.departmentId) {
-    const department = await db.department.findUnique({ where: { id: body.departmentId } })
-    if (!department) {
+    const existing = await db.teacher.findUnique({ where: { id } })
+    if (!existing) {
       return c.json(
-        { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
+        { error: ERROR_CODES.NOT_FOUND, message: 'Lehrkraft nicht gefunden' },
         HTTP_STATUS.NOT_FOUND
       )
     }
+
+    if (body.email && body.email !== existing.email) {
+      const emailTaken = await db.teacher.findUnique({ where: { email: body.email } })
+      if (emailTaken) {
+        return c.json(
+          { error: ERROR_CODES.CONFLICT, message: 'E-Mail bereits vergeben' },
+          HTTP_STATUS.CONFLICT
+        )
+      }
+    }
+
+    if (body.departmentId) {
+      const department = await db.department.findUnique({ where: { id: body.departmentId } })
+      if (!department) {
+        return c.json(
+          { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
+          HTTP_STATUS.NOT_FOUND
+        )
+      }
+    }
+
+    const teacher = await db.teacher.update({
+      where: { id },
+      data: body,
+      select: teacherSelectPublic,
+    })
+
+    return c.json({ data: teacher })
   }
+)
 
-  const teacher = await db.teacher.update({
-    where: { id },
-    data: body,
-    select: teacherSelectPublic,
-  })
-
-  return c.json({ data: teacher })
-})
-
-teachersRouter.delete('/:id', async (c) => {
+teachersRouter.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const existing = await db.teacher.findUnique({

@@ -3,6 +3,7 @@ import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { requireAdmin } from '../middleware/auth'
 
 export const departmentsRouter = new Hono()
 
@@ -51,7 +52,7 @@ const createDepartmentSchema = z.object({
     .optional(),
 })
 
-departmentsRouter.post('/', zValidator('json', createDepartmentSchema), async (c) => {
+departmentsRouter.post('/', requireAdmin, zValidator('json', createDepartmentSchema), async (c) => {
   const body = c.req.valid('json')
 
   const existing = await db.department.findFirst({
@@ -79,46 +80,51 @@ const updateDepartmentSchema = z.object({
     .optional(),
 })
 
-departmentsRouter.patch('/:id', zValidator('json', updateDepartmentSchema), async (c) => {
-  const id = c.req.param('id')
-  const body = c.req.valid('json')
+departmentsRouter.patch(
+  '/:id',
+  requireAdmin,
+  zValidator('json', updateDepartmentSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const body = c.req.valid('json')
 
-  const existing = await db.department.findUnique({ where: { id } })
-  if (!existing) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
-
-  if (body.name || body.shortCode) {
-    const conflict = await db.department.findFirst({
-      where: {
-        id: { not: id },
-        OR: [
-          ...(body.name ? [{ name: body.name }] : []),
-          ...(body.shortCode ? [{ shortCode: body.shortCode }] : []),
-        ],
-      },
-    })
-    if (conflict) {
+    const existing = await db.department.findUnique({ where: { id } })
+    if (!existing) {
       return c.json(
-        { error: ERROR_CODES.CONFLICT, message: 'Name oder Kürzel bereits vergeben' },
-        HTTP_STATUS.CONFLICT
+        { error: ERROR_CODES.NOT_FOUND, message: 'Fachbereich nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
       )
     }
+
+    if (body.name || body.shortCode) {
+      const conflict = await db.department.findFirst({
+        where: {
+          id: { not: id },
+          OR: [
+            ...(body.name ? [{ name: body.name }] : []),
+            ...(body.shortCode ? [{ shortCode: body.shortCode }] : []),
+          ],
+        },
+      })
+      if (conflict) {
+        return c.json(
+          { error: ERROR_CODES.CONFLICT, message: 'Name oder Kürzel bereits vergeben' },
+          HTTP_STATUS.CONFLICT
+        )
+      }
+    }
+
+    const department = await db.department.update({
+      where: { id },
+      data: body,
+      include: { _count: { select: { teachers: true } } },
+    })
+
+    return c.json({ data: department })
   }
+)
 
-  const department = await db.department.update({
-    where: { id },
-    data: body,
-    include: { _count: { select: { teachers: true } } },
-  })
-
-  return c.json({ data: department })
-})
-
-departmentsRouter.delete('/:id', async (c) => {
+departmentsRouter.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const existing = await db.department.findUnique({

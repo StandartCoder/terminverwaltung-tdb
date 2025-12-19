@@ -1,11 +1,7 @@
-import { createHash } from 'crypto'
 import { PrismaClient } from '@prisma/client'
+import { hashPassword } from '@terminverwaltung/auth'
 
 const prisma = new PrismaClient()
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
-}
 
 async function main() {
   console.log('Seeding database for Tag der Betriebe...')
@@ -70,12 +66,13 @@ async function main() {
   console.log(`Created ${departments.length} departments`)
 
   // Create Admin (no department - admins are system-wide)
+  const adminPasswordHash = await hashPassword('admin123')
   const admin = await prisma.teacher.upsert({
     where: { email: 'admin@osz-teltow.de' },
     update: {},
     create: {
       email: 'admin@osz-teltow.de',
-      passwordHash: hashPassword('admin123'),
+      passwordHash: adminPasswordHash,
       firstName: 'Admin',
       lastName: 'User',
       isAdmin: true,

@@ -1,6 +1,6 @@
 {
   "name": "@terminverwaltung/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,9 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "dotenv -e ../../.env -- vitest run",
+    "test:watch": "dotenv -e ../../.env -- vitest",
+    "test:coverage": "dotenv -e ../../.env -- vitest run --coverage"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -21,7 +22,7 @@
     "@terminverwaltung/email": "workspace:*",
     "@terminverwaltung/shared": "workspace:*",
     "@terminverwaltung/validators": "workspace:*",
-    "hono": "^4.6.13",
+    "hono": "^4.11.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

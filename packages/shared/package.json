@@ -17,10 +17,14 @@
     "./utils": {
       "types": "./src/utils.ts",
       "import": "./dist/utils.js"
+    },
+    "./errors": {
+      "types": "./src/errors.ts",
+      "import": "./dist/errors.js"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/constants.ts src/utils.ts --format esm",
+    "build": "tsup src/index.ts src/constants.ts src/utils.ts src/errors.ts --format esm",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit"
   },

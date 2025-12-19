@@ -1,4 +1,5 @@
 import { db } from '@terminverwaltung/database'
+import type { EmailSettings } from '@terminverwaltung/email'
 
 // Default values for all settings
 const DEFAULTS: Record<string, string> = {
@@ -127,4 +128,17 @@ export async function getPublicSettings(): Promise<Record<string, string>> {
   }
 
   return publicSettings
+}
+
+export async function getEmailSettings(): Promise<EmailSettings> {
+  const [schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo] =
+    await Promise.all([
+      getSetting('school_name'),
+      getSetting('school_email'),
+      getSetting('school_phone'),
+      getSetting('public_url'),
+      getSetting('email_from_name'),
+      getSetting('email_reply_to'),
+    ])
+  return { schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo }
 }

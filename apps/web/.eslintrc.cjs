@@ -31,5 +31,12 @@ module.exports = {
         '@typescript-eslint/no-require-imports': 'off',
       },
     },
+    {
+      // next-env.d.ts imports generated types that only exist after build
+      files: ['next-env.d.ts'],
+      rules: {
+        'import/no-unresolved': 'off',
+      },
+    },
   ],
 }

@@ -2,13 +2,14 @@ import { zValidator } from '@hono/zod-validator'
 import { generateCancellationCode } from '@terminverwaltung/auth'
 import { db, Prisma } from '@terminverwaltung/database'
 import {
-  sendBookingConfirmation,
-  sendBookingCancellation,
-  sendRebookConfirmation,
-  sendTeacherBookingNotification,
-  type EmailSettings,
-} from '@terminverwaltung/email'
-import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
+  HTTP_STATUS,
+  ERROR_CODES,
+  NotFoundError,
+  SlotAlreadyBookedError,
+  AlreadyCancelledError,
+  SameSlotError,
+  ForbiddenError,
+} from '@terminverwaltung/shared'
 import {
   createBookingSchema,
   cancelBookingSchema,
@@ -17,23 +18,16 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { getSettingBoolean, getSettingNumber, getSetting } from '../services/settings'
+import { requireAuth, requireAdmin } from '../middleware/auth'
+import {
+  sendConfirmationWithLogging,
+  sendCancellationWithLogging,
+  sendRebookWithLogging,
+  sendTeacherNotificationWithLogging,
+} from '../services/email'
+import { getSettingBoolean, getSettingNumber, getEmailSettings } from '../services/settings'
 
 export const bookingsRouter = new Hono()
-
-// Helper to get email settings from database
-async function getEmailSettings(): Promise<EmailSettings> {
-  const [schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo] =
-    await Promise.all([
-      getSetting('school_name'),
-      getSetting('school_email'),
-      getSetting('school_phone'),
-      getSetting('public_url'),
-      getSetting('email_from_name'),
-      getSetting('email_reply_to'),
-    ])
-  return { schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo }
-}
 
 // Helper to check if booking/cancel/rebook is allowed based on notice hours
 async function checkNoticeHours(
@@ -121,11 +115,11 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
       })
 
       if (!timeSlot) {
-        throw new Error('NOT_FOUND:Zeitslot nicht gefunden')
+        throw new NotFoundError('Zeitslot nicht gefunden')
       }
 
       if (timeSlot.status !== 'AVAILABLE' || timeSlot.booking) {
-        throw new Error('SLOT_ALREADY_BOOKED:Dieser Termin ist bereits vergeben')
+        throw new SlotAlreadyBookedError()
       }
 
       // Check booking notice hours
@@ -135,7 +129,7 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
         'booking_notice_hours'
       )
       if (!noticeCheck.allowed) {
-        throw new Error(`FORBIDDEN:${noticeCheck.message}`)
+        throw new ForbiddenError(noticeCheck.message)
       }
 
       await tx.timeSlot.update({
@@ -171,25 +165,33 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
     }
   )
 
+  // Track email warnings to return to the user
+  const warnings: string[] = []
+
   // Send email if enabled
   const emailEnabled = await getSettingBoolean('email_notifications')
   if (emailEnabled) {
     const emailSettings = await getEmailSettings()
 
     // Send confirmation to company
-    try {
-      await sendBookingConfirmation(result, emailSettings)
-    } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError)
+    const confirmResult = await sendConfirmationWithLogging(result, emailSettings)
+    if (!confirmResult.success) {
+      warnings.push(
+        'Die Bestätigungs-E-Mail konnte nicht gesendet werden. Bitte notieren Sie sich Ihren Buchungscode.'
+      )
     }
 
     // Notify teacher if enabled
     const notifyTeacher = await getSettingBoolean('notify_teacher_on_booking')
     if (notifyTeacher && result.teacher.email) {
-      try {
-        await sendTeacherBookingNotification(result, result.teacher.email, emailSettings)
-      } catch (emailError) {
-        console.error('Failed to send teacher notification email:', emailError)
+      const teacherResult = await sendTeacherNotificationWithLogging(
+        result,
+        result.teacher.email,
+        emailSettings
+      )
+      if (!teacherResult.success) {
+        // Don't warn the customer about internal teacher notification failure
+        console.error('Teacher notification failed but not surfacing to user')
       }
     }
   }
@@ -209,6 +211,7 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
           department: result.teacher.department,
         },
       },
+      ...(warnings.length > 0 && { warnings }),
     },
     HTTP_STATUS.CREATED
   )
@@ -272,18 +275,23 @@ bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c
     }),
   ])
 
+  // Track email warnings
+  const warnings: string[] = []
+
   // Send email if enabled
   const emailEnabled = await getSettingBoolean('email_notifications')
   if (emailEnabled) {
-    try {
-      const emailSettings = await getEmailSettings()
-      await sendBookingCancellation(booking, emailSettings)
-    } catch (emailError) {
-      console.error('Failed to send cancellation email:', emailError)
+    const emailSettings = await getEmailSettings()
+    const cancelResult = await sendCancellationWithLogging(booking, emailSettings)
+    if (!cancelResult.success) {
+      warnings.push('Die Stornierungsbestätigung konnte nicht per E-Mail gesendet werden.')
     }
   }
 
-  return c.json({ message: 'Buchung erfolgreich storniert' })
+  return c.json({
+    message: 'Buchung erfolgreich storniert',
+    ...(warnings.length > 0 && { warnings }),
+  })
 })
 
 bookingsRouter.get('/check/:code', async (c) => {
@@ -327,7 +335,8 @@ bookingsRouter.get('/check/:code', async (c) => {
   })
 })
 
-bookingsRouter.get('/', async (c) => {
+// Admin view: list all bookings with filters
+bookingsRouter.get('/', requireAuth, async (c) => {
   const status = c.req.query('status')
   const teacherId = c.req.query('teacherId')
   const companyEmail = c.req.query('companyEmail')
@@ -354,7 +363,8 @@ bookingsRouter.get('/', async (c) => {
   return c.json({ data: bookings })
 })
 
-bookingsRouter.get('/:id', async (c) => {
+// Admin view: get single booking details
+bookingsRouter.get('/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
 
   const booking = await db.booking.findUnique({
@@ -379,35 +389,41 @@ const updateBookingStatusSchema = z.object({
   status: bookingStatusSchema,
 })
 
-bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema), async (c) => {
-  const id = c.req.param('id')
-  const { status } = c.req.valid('json')
+// Admin action: update booking status
+bookingsRouter.patch(
+  '/:id/status',
+  requireAdmin,
+  zValidator('json', updateBookingStatusSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const { status } = c.req.valid('json')
 
-  const booking = await db.booking.findUnique({ where: { id } })
-  if (!booking) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Buchung nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
+    const booking = await db.booking.findUnique({ where: { id } })
+    if (!booking) {
+      return c.json(
+        { error: ERROR_CODES.NOT_FOUND, message: 'Buchung nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
 
-  const updated = await db.booking.update({
-    where: { id },
-    data: {
-      status,
-      ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
-    },
-  })
-
-  if (status === 'CANCELLED') {
-    await db.timeSlot.update({
-      where: { id: booking.timeSlotId },
-      data: { status: 'AVAILABLE' },
+    const updated = await db.booking.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
+      },
     })
-  }
 
-  return c.json({ data: updated })
-})
+    if (status === 'CANCELLED') {
+      await db.timeSlot.update({
+        where: { id: booking.timeSlotId },
+        data: { status: 'AVAILABLE' },
+      })
+    }
+
+    return c.json({ data: updated })
+  }
+)
 
 // Rebook: change to a different timeslot (atomic operation)
 const rebookSchema = z.object({
@@ -438,11 +454,11 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
       })
 
       if (!existingBooking) {
-        throw new Error('NOT_FOUND:Buchung nicht gefunden')
+        throw new NotFoundError('Buchung nicht gefunden')
       }
 
       if (existingBooking.status === 'CANCELLED') {
-        throw new Error('ALREADY_CANCELLED:Diese Buchung wurde bereits storniert')
+        throw new AlreadyCancelledError()
       }
 
       const newTimeSlot = await tx.timeSlot.findUnique({
@@ -454,15 +470,15 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
       })
 
       if (!newTimeSlot) {
-        throw new Error('NOT_FOUND:Neuer Zeitslot nicht gefunden')
+        throw new NotFoundError('Neuer Zeitslot nicht gefunden')
       }
 
       if (newTimeSlot.status !== 'AVAILABLE' || newTimeSlot.booking) {
-        throw new Error('SLOT_ALREADY_BOOKED:Der neue Termin ist bereits vergeben')
+        throw new SlotAlreadyBookedError('Der neue Termin ist bereits vergeben')
       }
 
       if (existingBooking.timeSlotId === newTimeSlotId) {
-        throw new Error('SAME_SLOT:Sie haben bereits diesen Termin gebucht')
+        throw new SameSlotError()
       }
 
       // Check booking notice hours for the new slot
@@ -472,7 +488,7 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
         'booking_notice_hours'
       )
       if (!noticeCheck.allowed) {
-        throw new Error(`FORBIDDEN:${noticeCheck.message}`)
+        throw new ForbiddenError(noticeCheck.message)
       }
 
       await tx.timeSlot.update({
@@ -505,14 +521,22 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
     }
   )
 
+  // Track email warnings
+  const warnings: string[] = []
+
   // Send email if enabled
   const emailEnabled = await getSettingBoolean('email_notifications')
   if (emailEnabled) {
-    try {
-      const emailSettings = await getEmailSettings()
-      await sendRebookConfirmation(result.updatedBooking, result.oldTimeSlot, emailSettings)
-    } catch (emailError) {
-      console.error('Failed to send rebook confirmation email:', emailError)
+    const emailSettings = await getEmailSettings()
+    const rebookResult = await sendRebookWithLogging(
+      result.updatedBooking,
+      result.oldTimeSlot,
+      emailSettings
+    )
+    if (!rebookResult.success) {
+      warnings.push(
+        'Die Umbuchungsbestätigung konnte nicht per E-Mail gesendet werden. Bitte notieren Sie sich Ihren neuen Buchungscode.'
+      )
     }
   }
 
@@ -530,5 +554,6 @@ bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
         department: result.updatedBooking.teacher.department,
       },
     },
+    ...(warnings.length > 0 && { warnings }),
   })
 })

@@ -19,8 +19,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json()
 }
 
+// Authenticated fetch - sends cookies with request
+function authFetch(url: string, options?: RequestInit): Promise<Response> {
+  return fetch(url, { credentials: 'include', ...options })
+}
+
 export const api = {
   departments: {
+    // Public endpoints - used in booking flow
     list: async () => {
       const res = await fetch(`${API_BASE}/api/departments`)
       return handleResponse<{ data: Department[] }>(res)
@@ -29,8 +35,9 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/departments/${id}`)
       return handleResponse<{ data: DepartmentWithTeachers }>(res)
     },
+    // Admin endpoints - require auth
     create: async (data: CreateDepartmentData) => {
-      const res = await fetch(`${API_BASE}/api/departments`, {
+      const res = await authFetch(`${API_BASE}/api/departments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -38,7 +45,7 @@ export const api = {
       return handleResponse<{ data: Department }>(res)
     },
     update: async (id: string, data: UpdateDepartmentData) => {
-      const res = await fetch(`${API_BASE}/api/departments/${id}`, {
+      const res = await authFetch(`${API_BASE}/api/departments/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -46,25 +53,26 @@ export const api = {
       return handleResponse<{ data: Department }>(res)
     },
     delete: async (id: string) => {
-      const res = await fetch(`${API_BASE}/api/departments/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_BASE}/api/departments/${id}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
     },
   },
 
   teachers: {
+    // Public/authenticated endpoints
     list: async (params?: { departmentId?: string; active?: boolean }) => {
       const searchParams = new URLSearchParams()
       if (params?.departmentId) searchParams.set('departmentId', params.departmentId)
       if (params?.active !== undefined) searchParams.set('active', String(params.active))
-      const res = await fetch(`${API_BASE}/api/teachers?${searchParams}`)
+      const res = await authFetch(`${API_BASE}/api/teachers?${searchParams}`)
       return handleResponse<{ data: Teacher[] }>(res)
     },
     get: async (id: string) => {
-      const res = await fetch(`${API_BASE}/api/teachers/${id}`)
+      const res = await authFetch(`${API_BASE}/api/teachers/${id}`)
       return handleResponse<{ data: TeacherWithSlots }>(res)
     },
     create: async (data: CreateTeacherData) => {
-      const res = await fetch(`${API_BASE}/api/teachers`, {
+      const res = await authFetch(`${API_BASE}/api/teachers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -72,7 +80,7 @@ export const api = {
       return handleResponse<{ data: Teacher }>(res)
     },
     update: async (id: string, data: UpdateTeacherData) => {
-      const res = await fetch(`${API_BASE}/api/teachers/${id}`, {
+      const res = await authFetch(`${API_BASE}/api/teachers/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -80,19 +88,36 @@ export const api = {
       return handleResponse<{ data: Teacher }>(res)
     },
     delete: async (id: string) => {
-      const res = await fetch(`${API_BASE}/api/teachers/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_BASE}/api/teachers/${id}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
     },
+    // Auth endpoints
     login: async (email: string, password: string) => {
-      const res = await fetch(`${API_BASE}/api/teachers/login`, {
+      const res = await authFetch(`${API_BASE}/api/teachers/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
+      return handleResponse<{ data: { teacher: Teacher } }>(res)
+    },
+    logout: async () => {
+      const res = await authFetch(`${API_BASE}/api/teachers/logout`, {
+        method: 'POST',
+      })
+      return handleResponse<{ message: string }>(res)
+    },
+    me: async () => {
+      const res = await authFetch(`${API_BASE}/api/teachers/me`)
       return handleResponse<{ data: Teacher }>(res)
     },
+    refresh: async () => {
+      const res = await authFetch(`${API_BASE}/api/teachers/refresh`, {
+        method: 'POST',
+      })
+      return handleResponse<{ data: { teacher: Teacher } }>(res)
+    },
     changePassword: async (id: string, currentPassword: string, newPassword: string) => {
-      const res = await fetch(`${API_BASE}/api/teachers/${id}/change-password`, {
+      const res = await authFetch(`${API_BASE}/api/teachers/${id}/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
@@ -100,7 +125,7 @@ export const api = {
       return handleResponse<{ message: string }>(res)
     },
     setPassword: async (id: string, newPassword: string) => {
-      const res = await fetch(`${API_BASE}/api/teachers/${id}/set-password`, {
+      const res = await authFetch(`${API_BASE}/api/teachers/${id}/set-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword }),
@@ -110,6 +135,7 @@ export const api = {
   },
 
   timeslots: {
+    // Public endpoints - used in booking flow
     list: async (params?: TimeSlotFilterParams) => {
       const searchParams = new URLSearchParams()
       if (params?.teacherId) searchParams.set('teacherId', params.teacherId)
@@ -135,8 +161,9 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/timeslots/settings`)
       return handleResponse<{ data: TimeSlotSettings }>(res)
     },
+    // Authenticated endpoints
     create: async (data: CreateTimeSlotData) => {
-      const res = await fetch(`${API_BASE}/api/timeslots`, {
+      const res = await authFetch(`${API_BASE}/api/timeslots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -144,7 +171,7 @@ export const api = {
       return handleResponse<{ data: TimeSlot }>(res)
     },
     createBulk: async (data: CreateBulkTimeSlotsData) => {
-      const res = await fetch(`${API_BASE}/api/timeslots/bulk`, {
+      const res = await authFetch(`${API_BASE}/api/timeslots/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -152,7 +179,7 @@ export const api = {
       return handleResponse<{ data: TimeSlot[]; count: number }>(res)
     },
     generate: async (data: GenerateTimeSlotsData) => {
-      const res = await fetch(`${API_BASE}/api/timeslots/generate`, {
+      const res = await authFetch(`${API_BASE}/api/timeslots/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -160,7 +187,7 @@ export const api = {
       return handleResponse<{ data: TimeSlot[]; count: number; settings: TimeSlotSettings }>(res)
     },
     updateStatus: async (id: string, status: 'AVAILABLE' | 'BLOCKED') => {
-      const res = await fetch(`${API_BASE}/api/timeslots/${id}/status`, {
+      const res = await authFetch(`${API_BASE}/api/timeslots/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -168,12 +195,13 @@ export const api = {
       return handleResponse<{ data: TimeSlot }>(res)
     },
     delete: async (id: string) => {
-      const res = await fetch(`${API_BASE}/api/timeslots/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_BASE}/api/timeslots/${id}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
     },
   },
 
   bookings: {
+    // Public endpoints - used by companies
     create: async (data: CreateBookingData) => {
       const res = await fetch(`${API_BASE}/api/bookings`, {
         method: 'POST',
@@ -202,6 +230,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/bookings/check/${code}`)
       return handleResponse<{ data: BookingDetails }>(res)
     },
+    // Authenticated endpoints - admin views
     list: async (params?: BookingFilterParams) => {
       const searchParams = new URLSearchParams()
       if (params?.status) searchParams.set('status', params.status)
@@ -209,11 +238,11 @@ export const api = {
       if (params?.companyEmail) searchParams.set('companyEmail', params.companyEmail)
       if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom)
       if (params?.dateTo) searchParams.set('dateTo', params.dateTo)
-      const res = await fetch(`${API_BASE}/api/bookings?${searchParams}`)
+      const res = await authFetch(`${API_BASE}/api/bookings?${searchParams}`)
       return handleResponse<{ data: Booking[] }>(res)
     },
     updateStatus: async (id: string, status: string) => {
-      const res = await fetch(`${API_BASE}/api/bookings/${id}/status`, {
+      const res = await authFetch(`${API_BASE}/api/bookings/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -223,6 +252,7 @@ export const api = {
   },
 
   events: {
+    // Public endpoints
     list: async () => {
       const res = await fetch(`${API_BASE}/api/events`)
       return handleResponse<{ data: Event[] }>(res)
@@ -235,8 +265,9 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/events/${id}`)
       return handleResponse<{ data: Event }>(res)
     },
+    // Authenticated endpoints
     create: async (data: CreateEventData) => {
-      const res = await fetch(`${API_BASE}/api/events`, {
+      const res = await authFetch(`${API_BASE}/api/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -244,7 +275,7 @@ export const api = {
       return handleResponse<{ data: Event }>(res)
     },
     update: async (id: string, data: UpdateEventData) => {
-      const res = await fetch(`${API_BASE}/api/events/${id}`, {
+      const res = await authFetch(`${API_BASE}/api/events/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -252,22 +283,28 @@ export const api = {
       return handleResponse<{ data: Event }>(res)
     },
     delete: async (id: string) => {
-      const res = await fetch(`${API_BASE}/api/events/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_BASE}/api/events/${id}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
     },
   },
 
   settings: {
+    // Public endpoint
+    getPublic: async () => {
+      const res = await fetch(`${API_BASE}/api/settings/public`)
+      return handleResponse<{ data: Record<string, string> }>(res)
+    },
+    // Authenticated endpoints
     list: async () => {
-      const res = await fetch(`${API_BASE}/api/settings`)
+      const res = await authFetch(`${API_BASE}/api/settings`)
       return handleResponse<{ data: Setting[]; map: Record<string, string> }>(res)
     },
     get: async (key: string) => {
-      const res = await fetch(`${API_BASE}/api/settings/${key}`)
+      const res = await authFetch(`${API_BASE}/api/settings/${key}`)
       return handleResponse<{ data: Setting }>(res)
     },
     set: async (key: string, value: string, description?: string) => {
-      const res = await fetch(`${API_BASE}/api/settings`, {
+      const res = await authFetch(`${API_BASE}/api/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value, description }),
@@ -275,7 +312,7 @@ export const api = {
       return handleResponse<{ data: Setting }>(res)
     },
     bulkUpdate: async (settings: { key: string; value: string }[]) => {
-      const res = await fetch(`${API_BASE}/api/settings/bulk`, {
+      const res = await authFetch(`${API_BASE}/api/settings/bulk`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings }),
@@ -283,18 +320,15 @@ export const api = {
       return handleResponse<{ data: Setting[] }>(res)
     },
     delete: async (key: string) => {
-      const res = await fetch(`${API_BASE}/api/settings/${key}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_BASE}/api/settings/${key}`, { method: 'DELETE' })
       return handleResponse<{ message: string }>(res)
-    },
-    getPublic: async () => {
-      const res = await fetch(`${API_BASE}/api/settings/public`)
-      return handleResponse<{ data: Record<string, string> }>(res)
     },
   },
 
   export: {
+    // All authenticated
     statistics: async () => {
-      const res = await fetch(`${API_BASE}/api/export/statistics`)
+      const res = await authFetch(`${API_BASE}/api/export/statistics`)
       return handleResponse<{ data: Statistics }>(res)
     },
     bookingsCsvUrl: (params?: { status?: string; dateFrom?: string; dateTo?: string }) => {

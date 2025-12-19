@@ -145,6 +145,15 @@ const createTimeSlotSchema = baseCreateTimeSlotSchema.extend({
 
 timeslotsRouter.post('/', requireAuth, zValidator('json', createTimeSlotSchema), async (c) => {
   const body = c.req.valid('json')
+  const user = c.get('user')
+
+  // Teachers can only create timeslots for themselves
+  if (!user.isAdmin && body.teacherId !== user.sub) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Keine Berechtigung für diese Aktion' },
+      HTTP_STATUS.FORBIDDEN
+    )
+  }
 
   const teacher = await db.teacher.findUnique({ where: { id: body.teacherId } })
   if (!teacher) {
@@ -196,6 +205,15 @@ const createBulkSchema = baseCreateBulkTimeSlotsSchema.extend({
 
 timeslotsRouter.post('/bulk', requireAuth, zValidator('json', createBulkSchema), async (c) => {
   const { teacherId, date, slots } = c.req.valid('json')
+  const user = c.get('user')
+
+  // Teachers can only create timeslots for themselves
+  if (!user.isAdmin && teacherId !== user.sub) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Keine Berechtigung für diese Aktion' },
+      HTTP_STATUS.FORBIDDEN
+    )
+  }
 
   const teacher = await db.teacher.findUnique({ where: { id: teacherId } })
   if (!teacher) {
@@ -243,12 +261,20 @@ timeslotsRouter.patch(
   async (c) => {
     const id = c.req.param('id')
     const { status } = c.req.valid('json')
+    const user = c.get('user')
 
     const existing = await db.timeSlot.findUnique({ where: { id } })
     if (!existing) {
       return c.json(
         { error: ERROR_CODES.NOT_FOUND, message: 'Zeitslot nicht gefunden' },
         HTTP_STATUS.NOT_FOUND
+      )
+    }
+
+    if (!user.isAdmin && existing.teacherId !== user.sub) {
+      return c.json(
+        { error: ERROR_CODES.FORBIDDEN, message: 'Keine Berechtigung für diese Aktion' },
+        HTTP_STATUS.FORBIDDEN
       )
     }
 
@@ -270,6 +296,7 @@ timeslotsRouter.patch(
 
 timeslotsRouter.delete('/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
+  const user = c.get('user')
 
   const existing = await db.timeSlot.findUnique({
     where: { id },
@@ -280,6 +307,13 @@ timeslotsRouter.delete('/:id', requireAuth, async (c) => {
     return c.json(
       { error: ERROR_CODES.NOT_FOUND, message: 'Zeitslot nicht gefunden' },
       HTTP_STATUS.NOT_FOUND
+    )
+  }
+
+  if (!user.isAdmin && existing.teacherId !== user.sub) {
+    return c.json(
+      { error: ERROR_CODES.FORBIDDEN, message: 'Keine Berechtigung für diese Aktion' },
+      HTTP_STATUS.FORBIDDEN
     )
   }
 
@@ -316,6 +350,15 @@ timeslotsRouter.post(
   zValidator('json', generateSlotsSchema),
   async (c) => {
     const body = c.req.valid('json')
+    const user = c.get('user')
+
+    // Teachers can only generate timeslots for themselves
+    if (!user.isAdmin && body.teacherId !== user.sub) {
+      return c.json(
+        { error: ERROR_CODES.FORBIDDEN, message: 'Keine Berechtigung für diese Aktion' },
+        HTTP_STATUS.FORBIDDEN
+      )
+    }
 
     const teacher = await db.teacher.findUnique({ where: { id: body.teacherId } })
     if (!teacher) {

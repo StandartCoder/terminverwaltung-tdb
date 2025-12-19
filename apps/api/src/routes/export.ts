@@ -1,12 +1,12 @@
 import { db } from '@terminverwaltung/database'
 import { formatDate, formatTime } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
-import { requireAuth } from '../middleware/auth'
+import { requireAdmin } from '../middleware/auth'
 
 export const exportRouter = new Hono()
 
-// All export routes require authentication
-exportRouter.use('/*', requireAuth)
+// All export routes require admin access
+exportRouter.use('/*', requireAdmin)
 
 // Helper to format students array as string
 type Student = { name?: string; class?: string }

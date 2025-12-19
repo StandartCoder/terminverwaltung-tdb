@@ -19,7 +19,13 @@ function getJwtSecret(): string {
 }
 
 function getRefreshSecret(): string {
-  const secret = process.env.JWT_REFRESH_SECRET || getJwtSecret() + '_refresh'
+  const secret = process.env.JWT_REFRESH_SECRET
+  if (!secret) {
+    throw new Error('JWT_REFRESH_SECRET environment variable is required')
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT_REFRESH_SECRET must be at least 32 characters')
+  }
   return secret
 }
 

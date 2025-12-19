@@ -17,7 +17,7 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireAdmin } from '../middleware/auth'
 import { getSettingBoolean, getSettingNumber, getSetting } from '../services/settings'
 
 export const bookingsRouter = new Hono()
@@ -385,7 +385,7 @@ const updateBookingStatusSchema = z.object({
 // Admin action: update booking status
 bookingsRouter.patch(
   '/:id/status',
-  requireAuth,
+  requireAdmin,
   zValidator('json', updateBookingStatusSchema),
   async (c) => {
     const id = c.req.param('id')

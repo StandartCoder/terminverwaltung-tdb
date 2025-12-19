@@ -10,8 +10,8 @@ const CRON_SECRET = process.env.CRON_SECRET || ''
 // Middleware to verify cron secret (for external cron services like Vercel Cron, Railway, etc.)
 function verifyCronSecret(c: { req: { header: (name: string) => string | undefined } }): boolean {
   if (!CRON_SECRET) {
-    console.warn('CRON_SECRET not set - cron endpoints are unprotected')
-    return true
+    console.error('CRON_SECRET not set - cron endpoints are blocked')
+    return false
   }
   const providedSecret =
     c.req.header('x-cron-secret') || c.req.header('authorization')?.replace('Bearer ', '')

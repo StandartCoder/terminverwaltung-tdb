@@ -62,7 +62,7 @@ const querySchema = z.object({
   active: z.coerce.boolean().optional(),
 })
 
-teachersRouter.get('/', zValidator('query', querySchema), async (c) => {
+teachersRouter.get('/', requireAuth, zValidator('query', querySchema), async (c) => {
   const { departmentId, active } = c.req.valid('query')
 
   const teachers = await db.teacher.findMany({

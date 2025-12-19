@@ -24,6 +24,10 @@ interface ApiResponse<T = unknown> {
 const app = new Hono()
 app.route('/api/departments', departmentsRouter)
 
+const AUTH_HEADERS = {
+  Authorization: 'Bearer mock-admin-token',
+}
+
 const mockDepartments: DepartmentWithCount[] = [
   {
     id: 'dept-1',
@@ -117,7 +121,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({
           name: 'Fachinformatiker/in',
           shortCode: 'IT',
@@ -136,7 +140,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({
           name: 'Fachinformatiker/in',
           shortCode: 'IT',
@@ -152,7 +156,7 @@ describe('Departments Routes', () => {
     it('returns 400 when name is missing', async () => {
       const res = await app.request('/api/departments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({ shortCode: 'IT' }),
       })
 
@@ -162,7 +166,7 @@ describe('Departments Routes', () => {
     it('returns 400 when color format is invalid', async () => {
       const res = await app.request('/api/departments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({
           name: 'Test',
           shortCode: 'TST',
@@ -185,7 +189,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({ name: 'Updated Name' }),
       })
 
@@ -200,7 +204,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/nonexistent', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({ name: 'Updated' }),
       })
 
@@ -213,7 +217,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify({ name: 'KFZ-Mechatroniker/in' }),
       })
 
@@ -232,6 +236,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'DELETE',
+        headers: AUTH_HEADERS,
       })
 
       expect(res.status).toBe(200)
@@ -245,6 +250,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/nonexistent', {
         method: 'DELETE',
+        headers: AUTH_HEADERS,
       })
 
       expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
@@ -259,6 +265,7 @@ describe('Departments Routes', () => {
 
       const res = await app.request('/api/departments/dept-1', {
         method: 'DELETE',
+        headers: AUTH_HEADERS,
       })
 
       expect(res.status).toBe(HTTP_STATUS.CONFLICT)

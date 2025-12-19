@@ -275,11 +275,7 @@ teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) 
 
   const { passwordHash: _hash, ...teacherData } = teacher
   return c.json({
-    data: teacherData,
-    tokens: {
-      accessToken: tokens.accessToken,
-      expiresIn: ACCESS_TOKEN_MAX_AGE,
-    },
+    data: { teacher: teacherData },
   })
 })
 
@@ -298,7 +294,6 @@ teachersRouter.post('/refresh', async (c) => {
 
     const teacher = await db.teacher.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, isAdmin: true, isActive: true },
     })
 
     if (!teacher || !teacher.isActive) {
@@ -324,11 +319,9 @@ teachersRouter.post('/refresh', async (c) => {
       maxAge: REFRESH_TOKEN_MAX_AGE,
     })
 
+    const { passwordHash: _hash, ...teacherData } = teacher
     return c.json({
-      tokens: {
-        accessToken: tokens.accessToken,
-        expiresIn: ACCESS_TOKEN_MAX_AGE,
-      },
+      data: { teacher: teacherData },
     })
   } catch {
     return c.json(

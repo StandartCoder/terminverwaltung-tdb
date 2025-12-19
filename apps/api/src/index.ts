@@ -51,8 +51,11 @@ app.onError((err, c) => {
     if (code === 'NOT_FOUND') {
       return c.json({ error: ERROR_CODES.NOT_FOUND, message }, HTTP_STATUS.NOT_FOUND)
     }
-    if (code === 'SLOT_ALREADY_BOOKED') {
-      return c.json({ error: ERROR_CODES.SLOT_ALREADY_BOOKED, message }, HTTP_STATUS.CONFLICT)
+    if (code === 'SLOT_ALREADY_BOOKED' || code === 'ALREADY_CANCELLED' || code === 'SAME_SLOT') {
+      return c.json({ error: code, message }, HTTP_STATUS.CONFLICT)
+    }
+    if (code === 'FORBIDDEN') {
+      return c.json({ error: ERROR_CODES.FORBIDDEN, message }, HTTP_STATUS.FORBIDDEN)
     }
   }
 

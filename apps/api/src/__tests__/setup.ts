@@ -1,5 +1,30 @@
 import { vi, beforeEach } from 'vitest'
 
+// Mock the auth module to allow tests to pass authentication
+vi.mock('@terminverwaltung/auth', () => ({
+  verifyAccessToken: vi.fn(() => ({
+    sub: 'test-admin-id',
+    email: 'admin@test.de',
+    isAdmin: true,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  })),
+  verifyRefreshToken: vi.fn(() => ({
+    sub: 'test-admin-id',
+    email: 'admin@test.de',
+    isAdmin: true,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 604800,
+  })),
+  generateTokenPair: vi.fn(() => ({
+    accessToken: 'mock-access-token',
+    refreshToken: 'mock-refresh-token',
+  })),
+  hashPassword: vi.fn(async (password: string) => `hashed-${password}`),
+  verifyPassword: vi.fn(async () => true),
+  validatePasswordLength: vi.fn(async () => ({ valid: true })),
+}))
+
 // Mock the database module
 vi.mock('@terminverwaltung/database', () => ({
   db: {

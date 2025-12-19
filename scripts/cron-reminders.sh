@@ -6,7 +6,7 @@
 #   ./scripts/cron-reminders.sh
 #
 # Crontab (every 15 minutes):
-#   */15 * * * * /path/to/terminverwaltung-tbd/scripts/cron-reminders.sh
+#   */15 * * * * /path/to/terminverwaltung-tdb/scripts/cron-reminders.sh
 
 set -euo pipefail
 

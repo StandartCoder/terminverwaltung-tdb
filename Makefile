@@ -2,8 +2,7 @@
 # Terminverwaltung - Makefile (Development Only)
 # =============================================================================
 #
-# For production deployment, use the one-liner installer:
-#   curl -sSL https://raw.githubusercontent.com/your-org/terminverwaltung/main/install.sh | sudo bash
+# For production deployment, use the one-liner installer in README.md!
 #
 # =============================================================================
 

@@ -7,7 +7,7 @@ Appointment booking system for "Tag der Betriebe" at OSZ Teltow.
 ### One-Liner Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltug-tbd/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltug-tdb/main/install.sh | sudo bash
 ```
 
 This will:
@@ -58,8 +58,8 @@ Navigate to your domain and login with default admin:
 ### 1. Install Dependencies
 
 ```bash
-git clone https://github.com/StandartCoder/terminverwaltung-tbd
-cd terminverwaltung-tbd
+git clone https://github.com/StandartCoder/terminverwaltung-tdb
+cd terminverwaltung-tdb
 
 make setup
 ```
@@ -143,7 +143,7 @@ Setup:
 ## Project Structure
 
 ```
-terminverwaltung/
+terminverwaltung-tdb/
 ├── apps/
 │   ├── web/              # Next.js frontend
 │   └── api/              # Hono API backend
@@ -183,9 +183,3 @@ terminverwaltung/
 - **Auth:** JWT with httpOnly cookies, bcrypt
 - **Build:** Turborepo, pnpm
 - **Deploy:** Docker, GitHub Container Registry
-
----
-
-## License
-
-Private - OSZ Teltow

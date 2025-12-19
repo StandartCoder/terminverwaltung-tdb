@@ -8,7 +8,8 @@
 #
 # =============================================================================
 
-set -e
+# Note: We don't use 'set -e' because it breaks interactive prompts and
+# makes error handling unpredictable. Instead, we check return codes explicitly.
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -108,15 +109,17 @@ prompt_config() {
 
   # When piped via curl, stdin is the script itself. Read from /dev/tty for user input.
   if [ ! -t 0 ]; then
-    exec </dev/tty || {
+    if [ -e /dev/tty ]; then
+      exec </dev/tty
+    else
       warn "No terminal available for interactive prompts. Using defaults."
       NO_PROMPT=1
-    }
+    fi
   fi
 
   # Domain
   if [ -z "$DOMAIN" ]; then
-    read -p "Domain (leave empty for localhost): " DOMAIN
+    read -p "Domain (leave empty for localhost): " DOMAIN || true
     DOMAIN=${DOMAIN:-localhost}
   fi
 
@@ -134,7 +137,7 @@ prompt_config() {
   # Admin email
   if [ -z "$NO_PROMPT" ]; then
     echo ""
-    read -p "Admin email [admin@example.com]: " ADMIN_EMAIL
+    read -p "Admin email [admin@example.com]: " ADMIN_EMAIL || true
     ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
   else
     ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
@@ -143,15 +146,15 @@ prompt_config() {
   # SMTP settings
   if [ -z "$NO_PROMPT" ]; then
     echo ""
-    read -p "Configure email (SMTP)? [y/N]: " CONFIGURE_SMTP
+    read -p "Configure email (SMTP)? [y/N]: " CONFIGURE_SMTP || true
     if [[ "$CONFIGURE_SMTP" =~ ^[Yy]$ ]]; then
-      read -p "SMTP Host: " SMTP_HOST
-      read -p "SMTP Port [587]: " SMTP_PORT
+      read -p "SMTP Host: " SMTP_HOST || true
+      read -p "SMTP Port [587]: " SMTP_PORT || true
       SMTP_PORT=${SMTP_PORT:-587}
-      read -p "SMTP User: " SMTP_USER
-      read -s -p "SMTP Password: " SMTP_PASSWORD
+      read -p "SMTP User: " SMTP_USER || true
+      read -s -p "SMTP Password: " SMTP_PASSWORD || true
       echo ""
-      read -p "From Email: " SMTP_FROM
+      read -p "From Email: " SMTP_FROM || true
     fi
   fi
 

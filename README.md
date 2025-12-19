@@ -7,7 +7,7 @@ Appointment booking system for "Tag der Betriebe" at OSZ Teltow.
 ### One-Liner Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltug-tdb/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltung-tdb/main/install.sh | sudo bash
 ```
 
 This will:

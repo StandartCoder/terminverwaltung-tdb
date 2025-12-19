@@ -135,13 +135,8 @@ prompt_config() {
   fi
 
   # Admin email
-  if [ -z "$NO_PROMPT" ]; then
-    echo ""
-    read -p "Admin email [admin@example.com]: " ADMIN_EMAIL || true
-    ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
-  else
-    ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
-  fi
+  ADMIN_EMAIL="admin@osz-teltow.de"
+  ADMIN_PASSWORD="admin123"
 
   # SMTP settings
   if [ -z "$NO_PROMPT" ]; then
@@ -186,7 +181,6 @@ generate_credentials() {
   
   # Other secrets
   CRON_SECRET=$(generate_short_secret)
-  ADMIN_PASSWORD=$(generate_short_secret)
   
   success "Generated secure random credentials"
 }
@@ -268,10 +262,6 @@ CORS_ORIGIN="${APP_URL}"
 JWT_SECRET="${JWT_SECRET}"
 JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET}"
 CRON_SECRET="${CRON_SECRET}"
-
-# Initial Admin Account
-ADMIN_EMAIL="${ADMIN_EMAIL}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 
 # Email (SMTP)
 SMTP_HOST="${SMTP_HOST:-}"
@@ -530,7 +520,7 @@ main() {
   create_management_script
   start_services
   print_success
-  
+
   exit 0
 }
 

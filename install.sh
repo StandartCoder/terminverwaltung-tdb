@@ -8,9 +8,6 @@
 #
 # =============================================================================
 
-# Note: We don't use 'set -e' because it breaks interactive prompts and
-# makes error handling unpredictable. Instead, we check return codes explicitly.
-
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------

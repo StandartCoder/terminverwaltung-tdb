@@ -1,11 +1,9 @@
 'use client'
 
-import { AUTH_STORAGE_KEY } from '@terminverwaltung/shared'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, type Teacher } from './api'
+import { api, ApiError, type Teacher } from './api'
 
-const SESSION_TIMESTAMP_KEY = 'terminverwaltung_session_timestamp'
 const DEFAULT_SESSION_TIMEOUT_MINUTES = 60
 
 export interface AuthState {
@@ -14,54 +12,13 @@ export interface AuthState {
   isAuthenticated: boolean
 }
 
-interface StoredSession {
-  teacher: Teacher
-  timestamp: number
-}
-
-function getStoredSession(): StoredSession | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY)
-    const timestamp = localStorage.getItem(SESSION_TIMESTAMP_KEY)
-    if (!stored) return null
-    return {
-      teacher: JSON.parse(stored) as Teacher,
-      timestamp: timestamp ? parseInt(timestamp, 10) : Date.now(),
-    }
-  } catch {
-    return null
-  }
-}
-
-function setStoredSession(teacher: Teacher | null): void {
-  if (typeof window === 'undefined') return
-  if (teacher) {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(teacher))
-    localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString())
-  } else {
-    localStorage.removeItem(AUTH_STORAGE_KEY)
-    localStorage.removeItem(SESSION_TIMESTAMP_KEY)
-  }
-}
-
-function updateSessionTimestamp(): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString())
-}
-
-function isSessionExpired(timestamp: number, timeoutMinutes: number): boolean {
-  const now = Date.now()
-  const expirationTime = timestamp + timeoutMinutes * 60 * 1000
-  return now > expirationTime
-}
-
 export function useAuth() {
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sessionTimeout, setSessionTimeout] = useState(DEFAULT_SESSION_TIMEOUT_MINUTES)
   const router = useRouter()
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch session timeout setting
   useEffect(() => {
@@ -78,30 +35,73 @@ export function useAuth() {
       })
   }, [])
 
-  // Check session validity on mount and set up activity tracking
+  // Check authentication on mount by calling /me endpoint
   useEffect(() => {
-    const session = getStoredSession()
-
-    if (session) {
-      if (isSessionExpired(session.timestamp, sessionTimeout)) {
-        // Session expired, clear it
-        setStoredSession(null)
-        setTeacher(null)
-      } else {
-        setTeacher(session.teacher)
-        updateSessionTimestamp()
+    const checkAuth = async () => {
+      try {
+        const response = await api.teachers.me()
+        setTeacher(response.data)
+      } catch (error) {
+        // Not authenticated or token expired
+        if (error instanceof ApiError && error.status === 401) {
+          // Try to refresh token
+          try {
+            const refreshResponse = await api.teachers.refresh()
+            setTeacher(refreshResponse.data.teacher)
+          } catch {
+            // Refresh failed, user is not authenticated
+            setTeacher(null)
+          }
+        } else {
+          setTeacher(null)
+        }
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    setIsLoading(false)
-  }, [sessionTimeout])
+    checkAuth()
+  }, [])
 
-  // Activity tracking - update timestamp on user activity
+  // Set up token refresh interval (refresh 2 minutes before expiry)
+  // Access token expires in 15 minutes, so refresh every 13 minutes
+  useEffect(() => {
+    if (!teacher) {
+      if (refreshTimeoutRef.current) {
+        clearInterval(refreshTimeoutRef.current)
+        refreshTimeoutRef.current = null
+      }
+      return
+    }
+
+    const refreshInterval = 13 * 60 * 1000 // 13 minutes
+
+    refreshTimeoutRef.current = setInterval(async () => {
+      try {
+        const response = await api.teachers.refresh()
+        setTeacher(response.data.teacher)
+      } catch {
+        // Refresh failed, log out
+        setTeacher(null)
+        router.push('/lehrer')
+      }
+    }, refreshInterval)
+
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearInterval(refreshTimeoutRef.current)
+      }
+    }
+  }, [teacher, router])
+
+  // Activity tracking for session timeout
   useEffect(() => {
     if (!teacher) return
 
+    let lastActivity = Date.now()
+
     const handleActivity = () => {
-      updateSessionTimestamp()
+      lastActivity = Date.now()
 
       // Reset the inactivity timer
       if (activityTimeoutRef.current) {
@@ -110,11 +110,11 @@ export function useAuth() {
 
       activityTimeoutRef.current = setTimeout(
         () => {
-          // Check if session is still valid
-          const session = getStoredSession()
-          if (session && isSessionExpired(session.timestamp, sessionTimeout)) {
+          const timeSinceLastActivity = Date.now() - lastActivity
+          if (timeSinceLastActivity >= sessionTimeout * 60 * 1000) {
+            // Session expired due to inactivity, log out
+            api.teachers.logout().catch(() => {})
             setTeacher(null)
-            setStoredSession(null)
             router.push('/lehrer')
           }
         },
@@ -139,24 +139,29 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string): Promise<Teacher> => {
     const response = await api.teachers.login(email, password)
-    const loggedInTeacher = response.data
+    const loggedInTeacher = response.data.teacher
     setTeacher(loggedInTeacher)
-    setStoredSession(loggedInTeacher)
     return loggedInTeacher
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.teachers.logout()
+    } catch {
+      // Ignore logout errors
+    }
     setTeacher(null)
-    setStoredSession(null)
     if (activityTimeoutRef.current) {
       clearTimeout(activityTimeoutRef.current)
+    }
+    if (refreshTimeoutRef.current) {
+      clearInterval(refreshTimeoutRef.current)
     }
     router.push('/lehrer')
   }, [router])
 
   const updateTeacher = useCallback((updatedTeacher: Teacher) => {
     setTeacher(updatedTeacher)
-    setStoredSession(updatedTeacher)
   }, [])
 
   return {

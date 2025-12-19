@@ -22,7 +22,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "6.0.1"
+    "@prisma/client": "6.0.1",
+    "@terminverwaltung/auth": "workspace:*"
   },
   "devDependencies": {
     "@terminverwaltung/eslint-config": "workspace:*",

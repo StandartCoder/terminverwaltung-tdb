@@ -19,7 +19,11 @@
   "devDependencies": {
     "@terminverwaltung/eslint-config": "workspace:*",
     "@terminverwaltung/typescript-config": "workspace:*",
+    "@types/bcrypt": "^6.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0"
   }
 }

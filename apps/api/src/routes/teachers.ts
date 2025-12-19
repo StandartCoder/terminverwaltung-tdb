@@ -176,11 +176,12 @@ teachersRouter.post('/', zValidator('json', createTeacherSchema), async (c) => {
 
   // Check if new teachers must change password
   const requirePasswordChange = await getSettingBoolean('require_password_change')
+  const passwordHash = await hashPassword(body.password)
 
   const teacher = await db.teacher.create({
     data: {
       email: body.email,
-      passwordHash: hashPassword(body.password),
+      passwordHash,
       firstName: body.firstName,
       lastName: body.lastName,
       room: body.room,
@@ -202,7 +203,15 @@ teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) 
     include: { department: true },
   })
 
-  if (!teacher || !verifyPassword(password, teacher.passwordHash)) {
+  if (!teacher) {
+    return c.json(
+      { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
+      HTTP_STATUS.UNAUTHORIZED
+    )
+  }
+
+  const isValidPassword = await verifyPassword(password, teacher.passwordHash)
+  if (!isValidPassword) {
     return c.json(
       { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
       HTTP_STATUS.UNAUTHORIZED
@@ -249,17 +258,19 @@ teachersRouter.post('/:id/change-password', zValidator('json', changePasswordSch
     )
   }
 
-  if (!verifyPassword(currentPassword, teacher.passwordHash)) {
+  const isValidPassword = await verifyPassword(currentPassword, teacher.passwordHash)
+  if (!isValidPassword) {
     return c.json(
       { error: ERROR_CODES.UNAUTHORIZED, message: 'Aktuelles Passwort ist falsch' },
       HTTP_STATUS.UNAUTHORIZED
     )
   }
 
+  const newPasswordHash = await hashPassword(newPassword)
   await db.teacher.update({
     where: { id },
     data: {
-      passwordHash: hashPassword(newPassword),
+      passwordHash: newPasswordHash,
       mustChangePassword: false,
     },
   })
@@ -295,10 +306,11 @@ teachersRouter.post('/:id/set-password', zValidator('json', setPasswordSchema), 
     )
   }
 
+  const newPasswordHash = await hashPassword(newPassword)
   await db.teacher.update({
     where: { id },
     data: {
-      passwordHash: hashPassword(newPassword),
+      passwordHash: newPasswordHash,
       mustChangePassword: true,
     },
   })

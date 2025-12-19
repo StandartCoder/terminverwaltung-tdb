@@ -1,11 +1,14 @@
-import { createHash, randomBytes } from 'crypto'
+import bcrypt from 'bcrypt'
+import { randomBytes } from 'crypto'
 
-export function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
+const BCRYPT_ROUNDS = 12
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS)
 }
 
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash)
 }
 
 export function generateCancellationCode(): string {

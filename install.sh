@@ -48,7 +48,18 @@ generate_short_secret() {
 
 check_root() {
   if [ "$EUID" -ne 0 ]; then
-    error "Please run as root: curl -sSL ... | sudo bash"
+    echo ""
+    echo -e "${RED}=============================================${NC}"
+    echo -e "${RED}  ERROR: This script must be run as root!${NC}"
+    echo -e "${RED}=============================================${NC}"
+    echo ""
+    echo "  Please run with sudo:"
+    echo "    sudo bash install.sh"
+    echo ""
+    echo "  Or via curl:"
+    echo "    curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltung-tdb/main/install.sh | sudo bash"
+    echo ""
+    exit 1
   fi
 }
 
@@ -72,15 +83,15 @@ install_docker() {
   fi
 
   info "Dry-run succeeded, proceeding with installation..."
-  if ! sudo sh /tmp/install-docker.sh; then
+  if ! sh /tmp/install-docker.sh; then
     rm -f /tmp/install-docker.sh
     error "Docker installation failed."
   fi
 
   rm -f /tmp/install-docker.sh
 
-  sudo systemctl start docker
-  sudo systemctl enable docker
+  systemctl start docker
+  systemctl enable docker
   success "Docker installed"
 }
 
@@ -94,6 +105,14 @@ prompt_config() {
   echo -e "${BLUE}   Terminverwaltung - Installation${NC}"
   echo -e "${BLUE}================================================${NC}"
   echo ""
+
+  # When piped via curl, stdin is the script itself. Read from /dev/tty for user input.
+  if [ ! -t 0 ]; then
+    exec </dev/tty || {
+      warn "No terminal available for interactive prompts. Using defaults."
+      NO_PROMPT=1
+    }
+  fi
 
   # Domain
   if [ -z "$DOMAIN" ]; then

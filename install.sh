@@ -62,41 +62,25 @@ install_docker() {
     return 0
   fi
 
-  info "Installing Docker..."
+  info "Installing Docker via get.docker.com..."
+  curl -fsSL https://get.docker.com -o /tmp/install-docker.sh
 
-  if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS=$ID
-  else
-    error "Cannot detect OS. Please install Docker manually: https://docs.docker.com/engine/install/"
+  info "Running dry-run to verify installation steps..."
+  if ! sh /tmp/install-docker.sh --dry-run; then
+    rm -f /tmp/install-docker.sh
+    error "Docker installation dry-run failed. Your system may not be supported."
   fi
 
-  case $OS in
-    ubuntu|debian)
-      apt-get update -qq
-      apt-get install -y -qq ca-certificates curl gnupg
-      install -m 0755 -d /etc/apt/keyrings
-      curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      chmod a+r /etc/apt/keyrings/docker.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update -qq
-      apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      ;;
-    centos|rhel|fedora)
-      dnf install -y -q dnf-plugins-core || yum install -y -q yum-utils
-      dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 2>/dev/null || yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-      dnf install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin || yum install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      ;;
-    alpine)
-      apk add --no-cache docker docker-compose
-      ;;
-    *)
-      error "Unsupported OS: $OS. Please install Docker manually: https://docs.docker.com/engine/install/"
-      ;;
-  esac
+  info "Dry-run succeeded, proceeding with installation..."
+  if ! sudo sh /tmp/install-docker.sh; then
+    rm -f /tmp/install-docker.sh
+    error "Docker installation failed."
+  fi
 
-  systemctl start docker
-  systemctl enable docker
+  rm -f /tmp/install-docker.sh
+
+  sudo systemctl start docker
+  sudo systemctl enable docker
   success "Docker installed"
 }
 

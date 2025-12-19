@@ -1,5 +1,5 @@
-import bcrypt from 'bcrypt'
 import { randomBytes } from 'crypto'
+import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 
 const BCRYPT_ROUNDS = 12

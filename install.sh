@@ -4,10 +4,7 @@
 # =============================================================================
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/your-org/terminverwaltung/main/install.sh | bash
-#
-# Or with options:
-#   curl -sSL ... | bash -s -- --domain termine.schule.de --no-prompt
+#   curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltung-tdb/main/install.sh | bash
 #
 # =============================================================================
 
@@ -18,8 +15,8 @@ set -e
 # -----------------------------------------------------------------------------
 
 INSTALL_DIR="/opt/terminverwaltung"
-REPO_URL="https://raw.githubusercontent.com/your-org/terminverwaltung/main"
-IMAGE_NAME="ghcr.io/your-org/terminverwaltung:latest"
+REPO_URL="https://raw.githubusercontent.com/StandartCoder/terminverwaltung-tdb/main"
+IMAGE_NAME="ghcr.io/standartcoder/terminverwaltung-tdb:latest"
 
 # Colors
 RED='\033[0;31m'

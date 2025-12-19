@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+// API requests go through Next.js rewrites to /api/* (proxied to backend)
+// No need for NEXT_PUBLIC_API_URL - all requests are same-origin
+const API_BASE = ''
 
 export class ApiError extends Error {
   constructor(

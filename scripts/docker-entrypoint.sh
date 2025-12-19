@@ -70,6 +70,9 @@ export NODE_ENV=production
 export PORT_WEB="${PORT_WEB:-3000}"
 export PORT_API="${PORT_API:-3001}"
 
+# Next.js rewrites need to reach the API server internally
+export INTERNAL_API_URL="http://localhost:${PORT_API}"
+
 echo "Database: $DB_NAME @ $DB_HOST:$DB_PORT (user: $DB_USER)"
 echo "Web Port: $PORT_WEB"
 echo "API Port: $PORT_API"

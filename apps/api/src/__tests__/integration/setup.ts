@@ -4,20 +4,21 @@
  * This setup uses a real PostgreSQL database for testing.
  * Requires: docker compose -f docker-compose.dev.yml up postgres
  *
+ * Database URL is loaded from .env via dotenv-cli in package.json scripts.
  * Each test file gets a clean database state via transactions that are rolled back.
  */
 import { PrismaClient } from '@terminverwaltung/database'
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL environment variable is required. ' +
+      'Make sure .env file exists at project root with valid database credentials.'
+  )
+}
+
 // Test database client - separate from application client
 export const testDb = new PrismaClient({
-  datasources: {
-    db: {
-      url:
-        process.env.DATABASE_URL ||
-        'postgresql://postgres:postgres@localhost:5432/terminverwaltung_test',
-    },
-  },
   log: ['error'],
 })
 

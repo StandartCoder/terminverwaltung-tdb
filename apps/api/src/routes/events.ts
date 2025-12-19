@@ -3,6 +3,7 @@ import { db } from '@terminverwaltung/database'
 import { HTTP_STATUS, ERROR_CODES } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { requireAdmin } from '../middleware/auth'
 
 export const eventsRouter = new Hono()
 
@@ -56,7 +57,7 @@ const createEventSchema = z.object({
   isActive: z.boolean().optional().default(false),
 })
 
-eventsRouter.post('/', zValidator('json', createEventSchema), async (c) => {
+eventsRouter.post('/', requireAdmin, zValidator('json', createEventSchema), async (c) => {
   const body = c.req.valid('json')
 
   // If setting as active, deactivate all other events
@@ -100,7 +101,7 @@ const updateEventSchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-eventsRouter.patch('/:id', zValidator('json', updateEventSchema), async (c) => {
+eventsRouter.patch('/:id', requireAdmin, zValidator('json', updateEventSchema), async (c) => {
   const id = c.req.param('id')
   const body = c.req.valid('json')
 
@@ -141,7 +142,7 @@ eventsRouter.patch('/:id', zValidator('json', updateEventSchema), async (c) => {
   return c.json({ data: event })
 })
 
-eventsRouter.delete('/:id', async (c) => {
+eventsRouter.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const existing = await db.event.findUnique({ where: { id } })

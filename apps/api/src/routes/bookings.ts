@@ -17,6 +17,7 @@ import {
 } from '@terminverwaltung/validators'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { requireAuth } from '../middleware/auth'
 import { getSettingBoolean, getSettingNumber, getSetting } from '../services/settings'
 
 export const bookingsRouter = new Hono()
@@ -327,7 +328,8 @@ bookingsRouter.get('/check/:code', async (c) => {
   })
 })
 
-bookingsRouter.get('/', async (c) => {
+// Admin view: list all bookings with filters
+bookingsRouter.get('/', requireAuth, async (c) => {
   const status = c.req.query('status')
   const teacherId = c.req.query('teacherId')
   const companyEmail = c.req.query('companyEmail')
@@ -354,7 +356,8 @@ bookingsRouter.get('/', async (c) => {
   return c.json({ data: bookings })
 })
 
-bookingsRouter.get('/:id', async (c) => {
+// Admin view: get single booking details
+bookingsRouter.get('/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
 
   const booking = await db.booking.findUnique({
@@ -379,35 +382,41 @@ const updateBookingStatusSchema = z.object({
   status: bookingStatusSchema,
 })
 
-bookingsRouter.patch('/:id/status', zValidator('json', updateBookingStatusSchema), async (c) => {
-  const id = c.req.param('id')
-  const { status } = c.req.valid('json')
+// Admin action: update booking status
+bookingsRouter.patch(
+  '/:id/status',
+  requireAuth,
+  zValidator('json', updateBookingStatusSchema),
+  async (c) => {
+    const id = c.req.param('id')
+    const { status } = c.req.valid('json')
 
-  const booking = await db.booking.findUnique({ where: { id } })
-  if (!booking) {
-    return c.json(
-      { error: ERROR_CODES.NOT_FOUND, message: 'Buchung nicht gefunden' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
+    const booking = await db.booking.findUnique({ where: { id } })
+    if (!booking) {
+      return c.json(
+        { error: ERROR_CODES.NOT_FOUND, message: 'Buchung nicht gefunden' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
 
-  const updated = await db.booking.update({
-    where: { id },
-    data: {
-      status,
-      ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
-    },
-  })
-
-  if (status === 'CANCELLED') {
-    await db.timeSlot.update({
-      where: { id: booking.timeSlotId },
-      data: { status: 'AVAILABLE' },
+    const updated = await db.booking.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
+      },
     })
-  }
 
-  return c.json({ data: updated })
-})
+    if (status === 'CANCELLED') {
+      await db.timeSlot.update({
+        where: { id: booking.timeSlotId },
+        data: { status: 'AVAILABLE' },
+      })
+    }
+
+    return c.json({ data: updated })
+  }
+)
 
 // Rebook: change to a different timeslot (atomic operation)
 const rebookSchema = z.object({

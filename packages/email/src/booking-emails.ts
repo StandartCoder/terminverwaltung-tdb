@@ -1,34 +1,15 @@
 import type { Booking, Teacher, TimeSlot } from '@terminverwaltung/database'
-import { formatDate, formatTime } from '@terminverwaltung/shared'
+import {
+  formatDate,
+  formatTime,
+  formatStudents,
+  getFirstStudentName,
+} from '@terminverwaltung/shared'
 import { getTransporter, formatFromAddress, getPublicUrl } from './transporter'
 
 export type BookingWithRelations = Booking & {
   teacher: Teacher & { department: { name: string; shortCode: string } | null }
   timeSlot: TimeSlot
-}
-
-// Helper to format students array as string
-type Student = { name?: string; class?: string }
-function formatStudents(students: unknown): { names: string; classes: string } {
-  if (!students || !Array.isArray(students)) {
-    return { names: '', classes: '' }
-  }
-  const studentList = students as Student[]
-  const names = studentList
-    .map((s) => s.name || '')
-    .filter(Boolean)
-    .join(', ')
-  const classes = studentList
-    .map((s) => s.class || '')
-    .filter(Boolean)
-    .join(', ')
-  return { names, classes }
-}
-
-function getFirstStudentName(students: unknown): string {
-  if (!students || !Array.isArray(students)) return ''
-  const studentList = students as Student[]
-  return studentList[0]?.name || ''
 }
 
 export interface EmailSettings {

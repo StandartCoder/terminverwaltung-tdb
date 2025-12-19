@@ -1,9 +1,10 @@
 import { serve } from '@hono/node-server'
-import { ERROR_CODES, HTTP_STATUS } from '@terminverwaltung/shared'
+import { ERROR_CODES, HTTP_STATUS, isAppError } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { bookingsRouter } from './routes/bookings'
 import { cronRouter } from './routes/cron'
 import { departmentsRouter } from './routes/departments'
@@ -46,17 +47,8 @@ app.notFound((c) =>
 app.onError((err, c) => {
   console.error('Unhandled error:', err)
 
-  if (err.message.includes(':')) {
-    const [code, message] = err.message.split(':')
-    if (code === 'NOT_FOUND') {
-      return c.json({ error: ERROR_CODES.NOT_FOUND, message }, HTTP_STATUS.NOT_FOUND)
-    }
-    if (code === 'SLOT_ALREADY_BOOKED' || code === 'ALREADY_CANCELLED' || code === 'SAME_SLOT') {
-      return c.json({ error: code, message }, HTTP_STATUS.CONFLICT)
-    }
-    if (code === 'FORBIDDEN') {
-      return c.json({ error: ERROR_CODES.FORBIDDEN, message }, HTTP_STATUS.FORBIDDEN)
-    }
+  if (isAppError(err)) {
+    return c.json(err.toJSON(), err.statusCode as ContentfulStatusCode)
   }
 
   return c.json(

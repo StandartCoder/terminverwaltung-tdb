@@ -1,7 +1,7 @@
 import { db } from '@terminverwaltung/database'
-import { sendBookingReminder, type EmailSettings } from '@terminverwaltung/email'
+import { sendBookingReminder } from '@terminverwaltung/email'
 import { Hono } from 'hono'
-import { getSettingBoolean, getSettingNumber, getSetting } from '../services/settings'
+import { getSettingBoolean, getSettingNumber, getEmailSettings } from '../services/settings'
 
 export const cronRouter = new Hono()
 
@@ -16,19 +16,6 @@ function verifyCronSecret(c: { req: { header: (name: string) => string | undefin
   const providedSecret =
     c.req.header('x-cron-secret') || c.req.header('authorization')?.replace('Bearer ', '')
   return providedSecret === CRON_SECRET
-}
-
-async function getEmailSettings(): Promise<EmailSettings> {
-  const [schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo] =
-    await Promise.all([
-      getSetting('school_name'),
-      getSetting('school_email'),
-      getSetting('school_phone'),
-      getSetting('public_url'),
-      getSetting('email_from_name'),
-      getSetting('email_reply_to'),
-    ])
-  return { schoolName, schoolEmail, schoolPhone, publicUrl, emailFromName, emailReplyTo }
 }
 
 // POST /api/cron/reminders - Send booking reminders

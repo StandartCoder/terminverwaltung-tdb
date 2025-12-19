@@ -106,6 +106,37 @@ export function groupSlotsByTeacher<T extends TimeSlotLike>(slots: T[]): Record<
 }
 
 // =============================================================================
+// STUDENT HELPERS
+// =============================================================================
+
+export interface Student {
+  name?: string
+  class?: string
+}
+
+export function formatStudents(students: unknown): { names: string; classes: string } {
+  if (!students || !Array.isArray(students)) {
+    return { names: '', classes: '' }
+  }
+  const studentList = students as Student[]
+  const names = studentList
+    .map((s) => s.name || '')
+    .filter(Boolean)
+    .join(', ')
+  const classes = studentList
+    .map((s) => s.class || '')
+    .filter(Boolean)
+    .join(', ')
+  return { names, classes }
+}
+
+export function getFirstStudentName(students: unknown): string {
+  if (!students || !Array.isArray(students)) return ''
+  const studentList = students as Student[]
+  return studentList[0]?.name || ''
+}
+
+// =============================================================================
 // STRING HELPERS
 // =============================================================================
 

@@ -1,6 +1,6 @@
 {
   "name": "@terminverwaltung/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,9 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/terminverwaltung vitest run",
+    "test:watch": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/terminverwaltung vitest",
+    "test:coverage": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/terminverwaltung vitest run --coverage"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

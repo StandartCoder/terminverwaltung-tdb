@@ -1,5 +1,5 @@
 import { db } from '@terminverwaltung/database'
-import { formatDate, formatTime } from '@terminverwaltung/shared'
+import { formatDate, formatTime, formatStudents } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { requireAdmin } from '../middleware/auth'
 
@@ -7,24 +7,6 @@ export const exportRouter = new Hono()
 
 // All export routes require admin access
 exportRouter.use('/*', requireAdmin)
-
-// Helper to format students array as string
-type Student = { name?: string; class?: string }
-function formatStudents(students: unknown): { names: string; classes: string } {
-  if (!students || !Array.isArray(students)) {
-    return { names: '', classes: '' }
-  }
-  const studentList = students as Student[]
-  const names = studentList
-    .map((s) => s.name || '')
-    .filter(Boolean)
-    .join(', ')
-  const classes = studentList
-    .map((s) => s.class || '')
-    .filter(Boolean)
-    .join(', ')
-  return { names, classes }
-}
 
 const PRINT_STYLES = `
   <style>

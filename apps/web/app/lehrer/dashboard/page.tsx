@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { AppointmentsTab } from './components/appointments'
 import { DepartmentsManagement } from './components/departments-management'
@@ -14,11 +15,19 @@ import { useDashboardData } from './hooks/use-dashboard-data'
 export default function DashboardPage() {
   const { teacher, isLoading, logout } = useRequireAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
+  const router = useRouter()
 
   const { confirmedBookings, statistics, departments, allTeachers, events, settingsMap } =
     useDashboardData({ teacher })
 
-  if (isLoading || !teacher) {
+  // Redirect to password change page if required
+  useEffect(() => {
+    if (!isLoading && teacher?.mustChangePassword) {
+      router.replace('/lehrer/passwort-aendern')
+    }
+  }, [isLoading, teacher, router])
+
+  if (isLoading || !teacher || teacher.mustChangePassword) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">

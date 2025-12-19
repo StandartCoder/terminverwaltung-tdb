@@ -1,5 +1,5 @@
-import { hashPassword } from '@terminverwaltung/auth'
 import { PrismaClient } from '@prisma/client'
+import { hashPassword } from '@terminverwaltung/auth'
 
 const prisma = new PrismaClient()
 

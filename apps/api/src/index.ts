@@ -59,9 +59,10 @@ app.onError((err, c) => {
 
 const port = Number(process.env.PORT) || 3001
 
-console.log(`API server starting on port ${port}`)
-
-serve({ fetch: app.fetch, port })
+if (process.env.NODE_ENV !== 'test') {
+  console.log(`API server starting on port ${port}`)
+  serve({ fetch: app.fetch, port })
+}
 
 export default app
 export type AppType = typeof app

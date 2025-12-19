@@ -6,11 +6,11 @@
  * - Active event handling
  * - Permission checks
  */
-import { describe, it, expect } from 'vitest'
 import { HTTP_STATUS } from '@terminverwaltung/shared'
-import { testDb } from './setup'
+import { describe, it, expect } from 'vitest'
 import { createEvent, createAdmin, createTeacherWithAuth } from './factories'
 import { post, get, patch, del, getData } from './helpers'
+import { testDb } from './setup'
 
 describe('Events API', () => {
   describe('GET /api/events - List Events', () => {

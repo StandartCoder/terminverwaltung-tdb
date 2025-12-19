@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    env: {
+      NODE_ENV: 'test',
+    },
     setupFiles: ['./src/__tests__/integration/setup.ts'],
     include: ['./src/__tests__/integration/**/*.test.ts'],
     // Run tests sequentially to avoid database conflicts

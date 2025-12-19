@@ -1,3 +1,4 @@
+import type { TimeSlot } from '@terminverwaltung/database'
 import { db } from '@terminverwaltung/database'
 import {
   sendBookingConfirmation,
@@ -7,7 +8,6 @@ import {
   type BookingWithRelations,
   type EmailSettings,
 } from '@terminverwaltung/email'
-import type { TimeSlot } from '@terminverwaltung/database'
 import { formatDate, formatTime } from '@terminverwaltung/shared'
 
 type EmailType =

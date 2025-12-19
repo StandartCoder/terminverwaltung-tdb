@@ -4,9 +4,9 @@
  * Create test data with sensible defaults. All factories use the real database.
  */
 import { hashPassword, generateTokenPair } from '@terminverwaltung/auth'
+import type { Department, Teacher, TimeSlot, Booking, Event } from '@terminverwaltung/database'
 import { parseDateString, parseTimeString } from '@terminverwaltung/shared'
 import { testDb } from './setup'
-import type { Department, Teacher, TimeSlot, Booking, Event } from '@terminverwaltung/database'
 
 // Counter for unique values
 let counter = 0

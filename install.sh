@@ -530,6 +530,8 @@ main() {
   create_management_script
   start_services
   print_success
+  
+  exit 0
 }
 
 main "$@"

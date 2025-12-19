@@ -1,7 +1,6 @@
 import { serve } from '@hono/node-server'
 import { ERROR_CODES, HTTP_STATUS, isAppError } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -19,13 +18,6 @@ const app = new Hono()
 
 app.use('*', logger())
 app.use('*', prettyJSON())
-app.use(
-  '*',
-  cors({
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
-    credentials: true,
-  })
-)
 
 app.route('/health', healthRouter)
 app.route('/api/cron', cronRouter)

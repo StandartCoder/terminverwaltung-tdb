@@ -1,4 +1,4 @@
-# Terminverwaltung
+# Terminverwaltung - Tag der Betriebe
 
 Appointment booking system for "Tag der Betriebe" at OSZ Teltow.
 
@@ -7,7 +7,7 @@ Appointment booking system for "Tag der Betriebe" at OSZ Teltow.
 ### One-Liner Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/your-org/terminverwaltung/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/StandartCoder/terminverwaltug-tbd/main/install.sh | sudo bash
 ```
 
 This will:
@@ -58,8 +58,8 @@ Navigate to your domain and login with default admin:
 ### 1. Install Dependencies
 
 ```bash
-git clone https://github.com/your-org/terminverwaltung
-cd terminverwaltung
+git clone https://github.com/StandartCoder/terminverwaltung-tbd
+cd terminverwaltung-tbd
 
 make setup
 ```

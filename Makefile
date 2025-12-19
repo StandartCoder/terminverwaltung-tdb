@@ -1,17 +1,20 @@
 # =============================================================================
-# Terminverwaltung - Makefile
+# Terminverwaltung - Makefile (Development Only)
+# =============================================================================
+#
+# For production deployment, use the one-liner installer:
+#   curl -sSL https://raw.githubusercontent.com/your-org/terminverwaltung/main/install.sh | sudo bash
+#
 # =============================================================================
 
-.PHONY: help dev dev-services dev-stop build docker-up docker-down docker-restart docker-reset docker-logs \
-        docker-shell db-migrate db-seed db-studio setup gen-secrets clean clean-docker
+.PHONY: help dev dev-services dev-stop build db-migrate db-seed db-studio setup clean clean-docker test typecheck lint
 
-# Default target
 .DEFAULT_GOAL := help
 
 help:
 	@echo ""
-	@echo "  Terminverwaltung"
-	@echo "  ================"
+	@echo "  Terminverwaltung - Development Commands"
+	@echo "  ========================================"
 	@echo ""
 	@echo "  Development:"
 	@echo "    make dev            Start dev servers (auto-starts postgres/mailpit)"
@@ -24,19 +27,18 @@ help:
 	@echo "    make db-seed        Seed test data"
 	@echo "    make db-studio      Open Prisma Studio"
 	@echo ""
-	@echo "  Docker (Production):"
-	@echo "    make docker-up      Build and start (keeps data)"
-	@echo "    make docker-down    Stop container (keeps data)"
-	@echo "    make docker-restart Rebuild and restart (keeps data)"
-	@echo "    make docker-reset   Stop, DELETE ALL DATA, and restart fresh"
-	@echo "    make docker-logs    View logs"
-	@echo "    make docker-shell   Shell into container"
+	@echo "  Testing:"
+	@echo "    make test           Run all tests"
+	@echo "    make typecheck      Run TypeScript checks"
+	@echo "    make lint           Run ESLint"
 	@echo ""
-	@echo "  Utilities:"
+	@echo "  Setup:"
 	@echo "    make setup          First-time setup (install deps, create .env)"
-	@echo "    make gen-secrets    Generate secrets for .env"
 	@echo "    make clean          Stop everything, delete data + node_modules"
 	@echo "    make clean-docker   Stop Docker and delete volumes only"
+	@echo ""
+	@echo "  Production:"
+	@echo "    See install.sh for one-liner production deployment"
 	@echo ""
 
 # =============================================================================
@@ -74,39 +76,21 @@ db-studio:
 	pnpm db:studio
 
 # =============================================================================
-# Docker (Production)
+# Testing
 # =============================================================================
 
-docker-up:
-	docker compose up -d --build
+test:
+	pnpm test
 
-docker-down:
-	docker compose down
+typecheck:
+	pnpm typecheck
 
-docker-restart:
-	docker compose down && docker compose up -d --build
-
-docker-reset:
-	docker compose down -v && docker compose up -d --build
-
-docker-logs:
-	docker compose logs -f
-
-docker-shell:
-	docker compose exec app /bin/bash
+lint:
+	pnpm lint
 
 # =============================================================================
-# Utilities
+# Setup & Cleanup
 # =============================================================================
-
-gen-secrets:
-	@echo ""
-	@echo "Add these to your .env file:"
-	@echo ""
-	@echo "JWT_SECRET=\"$$(openssl rand -base64 48)\""
-	@echo "JWT_REFRESH_SECRET=\"$$(openssl rand -base64 48)\""
-	@echo "CRON_SECRET=\"$$(openssl rand -hex 16)\""
-	@echo ""
 
 setup:
 	@echo "Installing dependencies..."
@@ -126,7 +110,6 @@ setup:
 clean:
 	@echo "Stopping Docker containers..."
 	@docker compose -f docker-compose.dev.yml down -v --remove-orphans 2>/dev/null || true
-	@docker compose down -v --remove-orphans 2>/dev/null || true
 	@echo "Removing node_modules and build artifacts..."
 	@rm -rf node_modules apps/*/node_modules apps/*/.next apps/*/.turbo \
 	        packages/*/node_modules packages/*/.turbo .turbo
@@ -135,5 +118,4 @@ clean:
 
 clean-docker:
 	@docker compose -f docker-compose.dev.yml down -v --remove-orphans 2>/dev/null || true
-	@docker compose down -v --remove-orphans 2>/dev/null || true
 	@echo "Stopped containers and removed volumes."

@@ -2,107 +2,69 @@
 
 Appointment booking system for "Tag der Betriebe" at OSZ Teltow.
 
-## Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/)
-- [Node.js 20+](https://nodejs.org/) (for development only)
-- [pnpm](https://pnpm.io/installation) (for development only)
-
----
-
 ## Production Deployment
 
-### 1. Clone & Configure
+### One-Liner Installation
 
 ```bash
-git clone https://github.com/your-repo/terminverwaltung-tbd
-cd terminverwaltung-tbd
-
-# Create config
-cp .env.example .env
+curl -sSL https://raw.githubusercontent.com/your-org/terminverwaltung/main/install.sh | sudo bash
 ```
 
-### 2. Generate Secrets
+This will:
+
+1. Install Docker if not present (Ubuntu/Debian/CentOS/Alpine)
+2. Download the pre-built Docker image
+3. Auto-generate all security secrets
+4. Prompt for domain and optional SMTP settings
+5. Start all services
+6. Create a `terminverwaltung` CLI for management
+
+### After Installation
 
 ```bash
-make gen-secrets
+# View status
+terminverwaltung status
+
+# View logs
+terminverwaltung logs
+
+# Update to latest version
+terminverwaltung update
+
+# Create database backup
+terminverwaltung backup
 ```
 
-Copy the output into your `.env` file.
+### First Login
 
-### 3. Edit Configuration
-
-```bash
-nano .env   # or your editor of choice
-```
-
-Required changes for production:
-
-```bash
-# Your domain
-NEXT_PUBLIC_APP_URL="https://termine.your-school.de"
-NEXT_PUBLIC_API_URL="https://termine.your-school.de/api"
-NEXTAUTH_URL="https://termine.your-school.de"
-
-# Paste generated secrets here
-NEXTAUTH_SECRET="paste-generated-secret"
-CRON_SECRET="paste-generated-secret"
-
-# Email (required for confirmations)
-SMTP_HOST="smtp.your-provider.de"
-SMTP_PORT=587
-SMTP_USER="your-email@your-school.de"
-SMTP_PASSWORD="your-password"
-SMTP_FROM="termine@your-school.de"
-```
-
-### 4. Start
-
-```bash
-make docker-up
-```
-
-### 5. Verify
-
-```bash
-# Check status
-make docker-logs
-
-# Open browser
-open http://localhost:3000
-```
-
-### 6. First Login
-
-Navigate to `/lehrer` and login with default admin:
+Navigate to your domain and login with default admin:
 
 | Email               | Password |
 | ------------------- | -------- |
 | admin@osz-teltow.de | admin123 |
 
-**Change this password immediately in production!**
+**You will be required to change the password on first login.**
 
 ---
 
 ## Development Setup
 
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Node.js 20+](https://nodejs.org/)
+- [pnpm](https://pnpm.io/installation)
+
 ### 1. Install Dependencies
 
 ```bash
-git clone https://github.com/your-repo/terminverwaltung-tbd
-cd terminverwaltung-tbd
+git clone https://github.com/your-org/terminverwaltung
+cd terminverwaltung
 
 make setup
 ```
 
-### 2. Configure
-
-```bash
-# .env is created automatically, but edit if needed
-nano .env
-```
-
-### 3. Start Everything
+### 2. Start Development
 
 ```bash
 make dev
@@ -115,13 +77,13 @@ This starts:
 - Next.js frontend (port 3000)
 - Hono API (port 3001)
 
-### 4. Seed Test Data (first time only)
+### 3. Seed Test Data (first time only)
 
 ```bash
 make db-seed
 ```
 
-### 5. Open
+### Development URLs
 
 | Service       | URL                   |
 | ------------- | --------------------- |
@@ -133,8 +95,6 @@ make db-seed
 ---
 
 ## Make Commands
-
-Run `make help` to see all commands:
 
 ```
 Development:
@@ -148,15 +108,13 @@ Database:
   make db-seed        Seed test data
   make db-studio      Open Prisma Studio
 
-Docker (Production):
-  make docker-up      Build and start container
-  make docker-down    Stop container
-  make docker-logs    View logs
-  make docker-shell   Shell into container
+Testing:
+  make test           Run all tests
+  make typecheck      Run TypeScript checks
+  make lint           Run ESLint
 
-Utilities:
+Setup:
   make setup          First-time setup
-  make gen-secrets    Generate secrets for .env
   make clean          Stop everything, delete all data and node_modules
   make clean-docker   Stop Docker and delete volumes only
 ```
@@ -165,26 +123,27 @@ Utilities:
 
 ## Environment Variables
 
-| Variable              | Required | Description                                            |
-| --------------------- | -------- | ------------------------------------------------------ |
-| `DATABASE_URL`        | Yes      | PostgreSQL connection string                           |
-| `NEXT_PUBLIC_APP_URL` | Yes      | Public URL of the web app                              |
-| `NEXT_PUBLIC_API_URL` | Yes      | Public URL of the API                                  |
-| `NEXTAUTH_URL`        | Yes      | Same as APP_URL                                        |
-| `NEXTAUTH_SECRET`     | Yes      | Auth encryption key (generate with `make gen-secrets`) |
-| `CRON_SECRET`         | Yes      | Cron job auth key (generate with `make gen-secrets`)   |
-| `SMTP_HOST`           | No       | SMTP server for emails                                 |
-| `SMTP_PORT`           | No       | SMTP port (default: 587)                               |
-| `SMTP_USER`           | No       | SMTP username                                          |
-| `SMTP_PASSWORD`       | No       | SMTP password                                          |
-| `SMTP_FROM`           | No       | From address for emails                                |
+| Variable              | Required | Description                           |
+| --------------------- | -------- | ------------------------------------- |
+| `DATABASE_URL`        | Yes      | PostgreSQL connection string          |
+| `NEXT_PUBLIC_APP_URL` | Yes      | Public URL of the web app             |
+| `NEXT_PUBLIC_API_URL` | Yes      | Public URL of the API                 |
+| `CORS_ORIGIN`         | Yes      | Allowed CORS origin (same as APP_URL) |
+| `JWT_SECRET`          | Yes      | Auth encryption key (auto-generated)  |
+| `JWT_REFRESH_SECRET`  | Yes      | Refresh token key (auto-generated)    |
+| `CRON_SECRET`         | Yes      | Cron job auth key (auto-generated)    |
+| `SMTP_HOST`           | No       | SMTP server for emails                |
+| `SMTP_PORT`           | No       | SMTP port (default: 587)              |
+| `SMTP_USER`           | No       | SMTP username                         |
+| `SMTP_PASSWORD`       | No       | SMTP password                         |
+| `SMTP_FROM`           | No       | From address for emails               |
 
 ---
 
 ## Project Structure
 
 ```
-terminverwaltung-tbd/
+terminverwaltung/
 ├── apps/
 │   ├── web/              # Next.js frontend
 │   └── api/              # Hono API backend
@@ -192,100 +151,15 @@ terminverwaltung-tbd/
 │   ├── database/         # Prisma schema & migrations
 │   ├── email/            # Email templates
 │   ├── validators/       # Zod schemas
-│   ├── auth/             # Auth utilities
+│   ├── auth/             # Auth utilities (bcrypt, JWT)
 │   └── shared/           # Shared constants
 ├── scripts/              # Docker & cron scripts
-├── docker-compose.yml    # Production
+├── install.sh            # One-liner production installer
+├── docker-compose.yml    # Production (via install.sh)
 ├── docker-compose.dev.yml# Development services
 ├── Dockerfile            # All-in-one production image
-└── Makefile              # Command shortcuts
+└── Makefile              # Development shortcuts
 ```
-
----
-
-## Common Tasks
-
-### Reset Database (Development)
-
-```bash
-make clean
-make dev
-make db-seed
-```
-
-### View Logs
-
-```bash
-# Production
-make docker-logs
-
-# Development - logs appear in terminal
-```
-
-### Update Dependencies
-
-```bash
-pnpm update
-make build
-```
-
-### Access Database Directly
-
-```bash
-# Development
-docker exec -it terminverwaltung-db psql -U postgres -d terminverwaltung
-
-# Production
-make docker-shell
-psql -U postgres -d terminverwaltung
-```
-
-### Backup Database (Production)
-
-```bash
-docker exec terminverwaltung-app pg_dump -U postgres terminverwaltung > backup.sql
-```
-
-### Restore Database
-
-```bash
-cat backup.sql | docker exec -i terminverwaltung-app psql -U postgres terminverwaltung
-```
-
----
-
-## Troubleshooting
-
-### Port already in use
-
-```bash
-make clean-docker
-make dev   # or make docker-up
-```
-
-### Database connection failed
-
-```bash
-# Check if containers are running
-docker ps
-
-# Check logs
-make docker-logs
-```
-
-### Build errors
-
-```bash
-make clean
-pnpm install
-make build
-```
-
-### Email not sending
-
-1. Check SMTP settings in `.env`
-2. In development, check Mailpit at http://localhost:8025
-3. Check API logs for errors
 
 ---
 
@@ -305,10 +179,10 @@ make build
 
 - **Frontend:** Next.js 15, React 19, Tailwind CSS, shadcn/ui
 - **Backend:** Hono, Prisma
-- **Database:** PostgreSQL
-- **Auth:** NextAuth.js
+- **Database:** PostgreSQL (embedded in Docker)
+- **Auth:** JWT with httpOnly cookies, bcrypt
 - **Build:** Turborepo, pnpm
-- **Deploy:** Docker
+- **Deploy:** Docker, GitHub Container Registry
 
 ---
 

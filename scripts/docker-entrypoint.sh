@@ -13,6 +13,41 @@ if [ -f /app/.env ]; then
   set +a
 fi
 
+# Auto-generate secrets if not set
+generate_secret() {
+  openssl rand -base64 48 | tr -d '\n'
+}
+
+SECRETS_GENERATED=0
+
+if [ -z "$JWT_SECRET" ]; then
+  JWT_SECRET=$(generate_secret)
+  echo "JWT_SECRET=\"$JWT_SECRET\"" >> /app/.env
+  echo "Auto-generated JWT_SECRET"
+  SECRETS_GENERATED=1
+fi
+
+if [ -z "$JWT_REFRESH_SECRET" ]; then
+  JWT_REFRESH_SECRET=$(generate_secret)
+  echo "JWT_REFRESH_SECRET=\"$JWT_REFRESH_SECRET\"" >> /app/.env
+  echo "Auto-generated JWT_REFRESH_SECRET"
+  SECRETS_GENERATED=1
+fi
+
+if [ -z "$CRON_SECRET" ]; then
+  CRON_SECRET=$(openssl rand -hex 16)
+  echo "CRON_SECRET=\"$CRON_SECRET\"" >> /app/.env
+  echo "Auto-generated CRON_SECRET"
+  SECRETS_GENERATED=1
+fi
+
+if [ $SECRETS_GENERATED -eq 1 ]; then
+  echo "Secrets have been auto-generated and saved to /app/.env"
+  echo "These secrets will persist across container restarts."
+fi
+
+export JWT_SECRET JWT_REFRESH_SECRET CRON_SECRET
+
 # Parse DATABASE_URL to extract credentials for PostgreSQL init
 # Format: postgresql://user:password@host:port/database?schema=public
 if [ -n "$DATABASE_URL" ]; then
@@ -88,11 +123,12 @@ if [ "$TEACHER_COUNT" = "0" ] || [ -z "$TEACHER_COUNT" ]; then
   echo "Seeding database (first run)..."
   node <<'SEED_EOF'
 const { PrismaClient } = require('@prisma/client');
-const crypto = require('crypto');
 const prisma = new PrismaClient();
 
 async function seed() {
-  const hash = (p) => crypto.createHash('sha256').update(p).digest('hex');
+  // Pre-computed bcrypt hash for "admin123" with 12 rounds
+  // Users must change password on first login (mustChangePassword: true)
+  const ADMIN_PASSWORD_HASH = '$2b$12$NUNIpLl4bX/Rly9kA7juCOQYLyzQ2sP7PWsaM5TlOyxnl8aKffYRC';
   
   // Departments (upsert to be idempotent)
   const depts = [
@@ -118,7 +154,7 @@ async function seed() {
     update: {},
     create: {
       email: 'admin@osz-teltow.de',
-      passwordHash: hash('admin123'),
+      passwordHash: ADMIN_PASSWORD_HASH,
       firstName: 'Admin',
       lastName: 'User',
       isAdmin: true,

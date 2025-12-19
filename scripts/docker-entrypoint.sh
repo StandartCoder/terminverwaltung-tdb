@@ -2,7 +2,7 @@
 set -e
 
 echo "=============================================="
-echo "Terminverwaltung - Starting All-in-One Server"
+echo "Terminverwaltung - Starting Application"
 echo "=============================================="
 
 # Load environment from .env if mounted
@@ -48,15 +48,20 @@ fi
 
 export JWT_SECRET JWT_REFRESH_SECRET CRON_SECRET
 
-# Parse DATABASE_URL to extract credentials for PostgreSQL init
+# Parse DATABASE_URL to extract credentials
 # Format: postgresql://user:password@host:port/database?schema=public
 if [ -n "$DATABASE_URL" ]; then
   DB_USER=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
   DB_PASS=$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+  DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
   DB_NAME=$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
 else
+  # Fallback for embedded mode (no external DATABASE_URL)
   DB_USER="postgres"
   DB_PASS="postgres"
+  DB_HOST="localhost"
+  DB_PORT="5432"
   DB_NAME="terminverwaltung"
   export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}?schema=public"
 fi
@@ -65,38 +70,55 @@ export NODE_ENV=production
 export PORT_WEB="${PORT_WEB:-3000}"
 export PORT_API="${PORT_API:-3001}"
 
-echo "Database: $DB_NAME (user: $DB_USER)"
+echo "Database: $DB_NAME @ $DB_HOST:$DB_PORT (user: $DB_USER)"
 echo "Web Port: $PORT_WEB"
 echo "API Port: $PORT_API"
 
-# Initialize PostgreSQL if needed
-if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
-  echo "Initializing PostgreSQL database..."
-  su-exec postgres initdb -D /var/lib/postgresql/data --auth=trust --encoding=UTF8
+# Determine if we need embedded PostgreSQL or external
+USE_EMBEDDED_POSTGRES=0
+
+if [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ]; then
+  USE_EMBEDDED_POSTGRES=1
+  echo "Using embedded PostgreSQL..."
   
-  echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
-  echo "listen_addresses='*'" >> /var/lib/postgresql/data/postgresql.conf
-fi
+  # Initialize PostgreSQL if needed
+  if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+    echo "Initializing PostgreSQL database..."
+    su-exec postgres initdb -D /var/lib/postgresql/data --auth=trust --encoding=UTF8
+    
+    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+    echo "listen_addresses='*'" >> /var/lib/postgresql/data/postgresql.conf
+  fi
 
-# Start PostgreSQL
-echo "Starting PostgreSQL..."
-su-exec postgres pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/postgresql.log start -w
+  # Start PostgreSQL
+  echo "Starting PostgreSQL..."
+  su-exec postgres pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/postgresql.log start -w
 
-# Wait for PostgreSQL
-until su-exec postgres pg_isready -q; do
+  # Wait for PostgreSQL
+  until su-exec postgres pg_isready -q; do
+    echo "Waiting for PostgreSQL..."
+    sleep 1
+  done
+  echo "PostgreSQL is ready!"
+
+  # Create database and user
+  echo "Setting up database..."
+  su-exec postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'" | grep -q 1 || \
+    su-exec postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}' SUPERUSER;"
+  su-exec postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
+    su-exec postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
+  su-exec postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
+  su-exec postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
+else
+  echo "Using external PostgreSQL at $DB_HOST:$DB_PORT..."
+  
+  # Wait for external PostgreSQL to be ready
   echo "Waiting for PostgreSQL..."
-  sleep 1
-done
-echo "PostgreSQL is ready!"
-
-# Create database and user
-echo "Setting up database..."
-su-exec postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'" | grep -q 1 || \
-  su-exec postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}' SUPERUSER;"
-su-exec postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
-  su-exec postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
-su-exec postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
-su-exec postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
+  until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q 2>/dev/null; do
+    sleep 1
+  done
+  echo "PostgreSQL is ready!"
+fi
 
 # Run Prisma migrations
 echo "Running database migrations..."

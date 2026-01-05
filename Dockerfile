@@ -68,7 +68,11 @@ RUN apk add --no-cache \
     openssl \
     su-exec \
     && mkdir -p /var/lib/postgresql/data /run/postgresql /var/log/supervisor /app/logs \
-    && chown -R postgres:postgres /var/lib/postgresql /run/postgresql /var/log/supervisor
+    && chown -R postgres:postgres /var/lib/postgresql /run/postgresql
+
+# Create non-root user for running application processes
+RUN addgroup -g 1001 appgroup \
+    && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
 
 # Install Prisma CLI v6 globally for migrations
 RUN npm install -g prisma@6.0.1
@@ -94,6 +98,9 @@ COPY scripts/cron-reminders.sh /app/scripts/cron-reminders.sh
 COPY scripts/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN chmod +x /app/docker-entrypoint.sh /app/scripts/cron-reminders.sh
+
+# Set ownership for app files to appuser
+RUN chown -R appuser:appgroup /app /var/log/supervisor
 
 # Expose ports
 EXPOSE 3000 3001 5432

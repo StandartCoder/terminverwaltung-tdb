@@ -7,6 +7,19 @@ import {
 } from '@terminverwaltung/shared'
 import { getTransporter, formatFromAddress, getPublicUrl } from './transporter'
 
+/**
+ * Escapes HTML special characters to prevent XSS in email content.
+ */
+function escapeHtml(unsafe: string | null | undefined): string {
+  if (!unsafe) return ''
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export type BookingWithRelations = Booking & {
   teacher: Teacher & { department: { name: string; shortCode: string } | null }
   timeSlot: TimeSlot
@@ -44,12 +57,11 @@ function getSettings(settings?: EmailSettings): Required<EmailSettings> {
 function formatContactInfo(settings: Required<EmailSettings>): string {
   const parts: string[] = []
   if (settings.schoolEmail) {
-    parts.push(
-      `E-Mail: <a href="mailto:${settings.schoolEmail}" style="color: #3182ce;">${settings.schoolEmail}</a>`
-    )
+    const email = escapeHtml(settings.schoolEmail)
+    parts.push(`E-Mail: <a href="mailto:${email}" style="color: #3182ce;">${email}</a>`)
   }
   if (settings.schoolPhone) {
-    parts.push(`Tel: ${settings.schoolPhone}`)
+    parts.push(`Tel: ${escapeHtml(settings.schoolPhone)}`)
   }
   if (parts.length === 0) return ''
   return `<br>${parts.join(' | ')}`
@@ -98,7 +110,7 @@ export async function sendBookingConfirmation(
         Terminbestätigung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${contactName || companyName},</p>
+      <p>Sehr geehrte/r ${escapeHtml(contactName) || escapeHtml(companyName)},</p>
       
       <p>Ihr Termin wurde erfolgreich gebucht.</p>
       
@@ -115,22 +127,22 @@ export async function sendBookingConfirmation(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
         </table>
       </div>
       
       <div style="background: #ebf8ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3182ce;">
         <p style="margin: 0; color: #2c5282;">
-          <strong>Buchungscode:</strong> <code style="background: #bee3f8; padding: 2px 6px; border-radius: 4px;">${cancellationCode}</code><br>
+          <strong>Buchungscode:</strong> <code style="background: #bee3f8; padding: 2px 6px; border-radius: 4px;">${escapeHtml(cancellationCode)}</code><br>
           <span style="font-size: 13px;">Bewahren Sie diesen Code auf, um Ihren Termin zu verwalten.</span>
         </p>
       </div>
@@ -144,7 +156,7 @@ export async function sendBookingConfirmation(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -174,7 +186,7 @@ async function sendParentBookingNotification(
   const { schoolName } = resolvedSettings
 
   const studentName = getFirstStudentName(students)
-  const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
+  const studentInfo = studentName ? `Ihres Kindes ${escapeHtml(studentName)}` : 'Ihres Kindes'
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -182,10 +194,10 @@ async function sendParentBookingNotification(
         Terminbenachrichtigung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${parentName || 'Elternteil'},</p>
+      <p>Sehr geehrte/r ${escapeHtml(parentName) || 'Elternteil'},</p>
       
       <p>
-        Der Ausbildungsbetrieb <strong>${companyName}</strong> hat einen Gesprächstermin 
+        Der Ausbildungsbetrieb <strong>${escapeHtml(companyName)}</strong> hat einen Gesprächstermin 
         bezüglich ${studentInfo} gebucht. Sie sind herzlich eingeladen, an diesem Gespräch teilzunehmen.
       </p>
       
@@ -202,19 +214,19 @@ async function sendParentBookingNotification(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Betrieb:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${companyName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(companyName)}</td>
           </tr>
         </table>
       </div>
@@ -229,7 +241,7 @@ async function sendParentBookingNotification(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -260,7 +272,7 @@ export async function sendBookingCancellation(
         Stornierungsbestätigung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${contactName || companyName},</p>
+      <p>Sehr geehrte/r ${escapeHtml(contactName) || escapeHtml(companyName)},</p>
       
       <p>Ihr Termin wurde erfolgreich storniert.</p>
       
@@ -277,7 +289,7 @@ export async function sendBookingCancellation(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #718096;">Lehrkraft:</td>
-            <td style="padding: 8px 0;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
         </table>
       </div>
@@ -287,7 +299,7 @@ export async function sendBookingCancellation(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -317,7 +329,7 @@ async function sendParentCancellationNotification(
   const { schoolName } = resolvedSettings
 
   const studentName = getFirstStudentName(students)
-  const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
+  const studentInfo = studentName ? `Ihres Kindes ${escapeHtml(studentName)}` : 'Ihres Kindes'
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -325,10 +337,10 @@ async function sendParentCancellationNotification(
         Terminstornierung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${parentName || 'Elternteil'},</p>
+      <p>Sehr geehrte/r ${escapeHtml(parentName) || 'Elternteil'},</p>
       
       <p>
-        Der Ausbildungsbetrieb <strong>${companyName}</strong> hat den Gesprächstermin 
+        Der Ausbildungsbetrieb <strong>${escapeHtml(companyName)}</strong> hat den Gesprächstermin 
         bezüglich ${studentInfo} storniert.
       </p>
       
@@ -345,18 +357,18 @@ async function sendParentCancellationNotification(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #742a2a;">Lehrkraft:</td>
-            <td style="padding: 8px 0;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #742a2a;">Betrieb:</td>
-            <td style="padding: 8px 0;">${companyName}</td>
+            <td style="padding: 8px 0;">${escapeHtml(companyName)}</td>
           </tr>
         </table>
       </div>
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an den Ausbildungsbetrieb oder das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -390,7 +402,7 @@ export async function sendRebookConfirmation(
         Umbuchungsbestätigung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${contactName || companyName},</p>
+      <p>Sehr geehrte/r ${escapeHtml(contactName) || escapeHtml(companyName)},</p>
       
       <p>Ihr Termin wurde erfolgreich umgebucht.</p>
       
@@ -421,15 +433,15 @@ export async function sendRebookConfirmation(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
         </table>
       </div>
@@ -437,7 +449,7 @@ export async function sendRebookConfirmation(
       <div style="background: #ebf8ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3182ce;">
         <p style="margin: 0; color: #2c5282;">
           <strong>Neuer Buchungscode:</strong><br>
-          <code style="background: #bee3f8; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${cancellationCode}</code>
+          <code style="background: #bee3f8; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${escapeHtml(cancellationCode)}</code>
         </p>
         <p style="margin: 10px 0 0 0; color: #2c5282; font-size: 14px;">
           Falls Sie den Termin erneut ändern oder stornieren möchten:<br>
@@ -447,7 +459,7 @@ export async function sendRebookConfirmation(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -478,7 +490,7 @@ async function sendParentRebookNotification(
   const { schoolName } = resolvedSettings
 
   const studentName = getFirstStudentName(students)
-  const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
+  const studentInfo = studentName ? `Ihres Kindes ${escapeHtml(studentName)}` : 'Ihres Kindes'
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -486,10 +498,10 @@ async function sendParentRebookNotification(
         Terminänderung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${parentName || 'Elternteil'},</p>
+      <p>Sehr geehrte/r ${escapeHtml(parentName) || 'Elternteil'},</p>
       
       <p>
-        Der Ausbildungsbetrieb <strong>${companyName}</strong> hat den Gesprächstermin 
+        Der Ausbildungsbetrieb <strong>${escapeHtml(companyName)}</strong> hat den Gesprächstermin 
         bezüglich ${studentInfo} auf einen neuen Zeitpunkt umgebucht.
       </p>
       
@@ -520,19 +532,19 @@ async function sendParentRebookNotification(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #276749;">Betrieb:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${companyName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(companyName)}</td>
           </tr>
         </table>
       </div>
@@ -546,7 +558,7 @@ async function sendParentRebookNotification(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -580,7 +592,7 @@ export async function sendTeacherBookingNotification(
         Neue Buchung - Tag der Betriebe
       </h1>
       
-      <p>Guten Tag ${teacher.firstName} ${teacher.lastName},</p>
+      <p>Guten Tag ${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)},</p>
       
       <p>Ein neuer Termin wurde für Sie gebucht.</p>
       
@@ -603,14 +615,14 @@ export async function sendTeacherBookingNotification(
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             <td style="padding: 8px 0; color: #2c5282;">Firmenname:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${companyName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(companyName)}</td>
           </tr>
           ${
             contactName
               ? `
           <tr>
             <td style="padding: 8px 0; color: #2c5282;">Ansprechpartner:</td>
-            <td style="padding: 8px 0;">${contactName}</td>
+            <td style="padding: 8px 0;">${escapeHtml(contactName)}</td>
           </tr>
           `
               : ''
@@ -620,7 +632,7 @@ export async function sendTeacherBookingNotification(
               ? `
           <tr>
             <td style="padding: 8px 0; color: #2c5282;">Auszubildende/r:</td>
-            <td style="padding: 8px 0;">${studentNames}${studentClasses ? ` (${studentClasses})` : ''}</td>
+            <td style="padding: 8px 0;">${escapeHtml(studentNames)}${studentClasses ? ` (${escapeHtml(studentClasses)})` : ''}</td>
           </tr>
           `
               : ''
@@ -630,7 +642,7 @@ export async function sendTeacherBookingNotification(
               ? `
           <tr>
             <td style="padding: 8px 0; color: #2c5282;">Anmerkungen:</td>
-            <td style="padding: 8px 0;">${notes}</td>
+            <td style="padding: 8px 0;">${escapeHtml(notes)}</td>
           </tr>
           `
               : ''
@@ -639,7 +651,7 @@ export async function sendTeacherBookingNotification(
       </div>
       
       <p style="color: #718096; font-size: 14px;">
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -673,7 +685,7 @@ export async function sendBookingReminder(
         Terminerinnerung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${contactName || companyName},</p>
+      <p>Sehr geehrte/r ${escapeHtml(contactName) || escapeHtml(companyName)},</p>
       
       <p>
         Wir möchten Sie an Ihren Termin in <strong>${Math.round(hoursUntilAppointment)} Stunden</strong> erinnern.
@@ -692,22 +704,22 @@ export async function sendBookingReminder(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
         </table>
       </div>
       
       <div style="background: #ebf8ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3182ce;">
         <p style="margin: 0; color: #2c5282;">
-          <strong>Buchungscode:</strong> <code style="background: #bee3f8; padding: 2px 6px; border-radius: 4px;">${cancellationCode}</code><br>
+          <strong>Buchungscode:</strong> <code style="background: #bee3f8; padding: 2px 6px; border-radius: 4px;">${escapeHtml(cancellationCode)}</code><br>
           <span style="font-size: 13px;">Falls Sie den Termin ändern oder stornieren möchten:</span><br>
           <a href="${manageUrl}" style="color: #3182ce;">Termin verwalten</a>
         </p>
@@ -715,7 +727,7 @@ export async function sendBookingReminder(
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `
@@ -747,7 +759,7 @@ async function sendParentReminder(
   const { schoolName } = resolvedSettings
 
   const studentName = getFirstStudentName(students)
-  const studentInfo = studentName ? `Ihres Kindes ${studentName}` : 'Ihres Kindes'
+  const studentInfo = studentName ? `Ihres Kindes ${escapeHtml(studentName)}` : 'Ihres Kindes'
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -755,7 +767,7 @@ async function sendParentReminder(
         Terminerinnerung - Tag der Betriebe
       </h1>
       
-      <p>Sehr geehrte/r ${parentName || 'Elternteil'},</p>
+      <p>Sehr geehrte/r ${escapeHtml(parentName) || 'Elternteil'},</p>
       
       <p>
         Wir möchten Sie an den Gesprächstermin bezüglich ${studentInfo} in 
@@ -775,26 +787,26 @@ async function sendParentReminder(
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Lehrkraft:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.firstName} ${teacher.lastName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.firstName)} ${escapeHtml(teacher.lastName)}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Fachbereich:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.department?.name || 'Nicht zugeordnet'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.department?.name) || 'Nicht zugeordnet'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Raum:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${teacher.room || 'Wird noch bekannt gegeben'}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(teacher.room) || 'Wird noch bekannt gegeben'}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #744210;">Betrieb:</td>
-            <td style="padding: 8px 0; font-weight: bold;">${companyName}</td>
+            <td style="padding: 8px 0; font-weight: bold;">${escapeHtml(companyName)}</td>
           </tr>
         </table>
       </div>
       
       <p style="color: #718096; font-size: 14px;">
         Bei Fragen wenden Sie sich bitte an den Ausbildungsbetrieb oder das Sekretariat.${formatContactInfo(resolvedSettings)}<br>
-        ${schoolName}
+        ${escapeHtml(schoolName)}
       </p>
     </div>
   `

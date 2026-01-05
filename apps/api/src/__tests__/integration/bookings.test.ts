@@ -253,12 +253,12 @@ describe('Bookings API', () => {
       // First cancel
       await post('/api/bookings/cancel', { cancellationCode: booking.cancellationCode })
 
-      // Second cancel - should fail
+      // Second cancel - should fail with same error as "not found" (timing attack prevention)
       const res = await post('/api/bookings/cancel', {
         cancellationCode: booking.cancellationCode,
       })
 
-      expect(res.status).toBe(HTTP_STATUS.CONFLICT)
+      expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
     })
 
     // TODO: cancellation_enabled setting check not implemented in API
@@ -370,8 +370,8 @@ describe('Bookings API', () => {
         newTimeSlotId: slot2.id,
       })
 
-      expect(res.status).toBe(HTTP_STATUS.CONFLICT)
-      expect(getError(res.body)?.error).toBe('ALREADY_CANCELLED')
+      // Returns 404 with generic message (timing attack prevention - same as "not found")
+      expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
     })
   })
 

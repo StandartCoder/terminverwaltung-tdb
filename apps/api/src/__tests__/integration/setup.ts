@@ -9,6 +9,7 @@
  */
 import { PrismaClient } from '@terminverwaltung/database'
 import { beforeAll, afterAll, beforeEach } from 'vitest'
+import { resetAllRateLimiters } from '../../middleware/rate-limit'
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -85,6 +86,9 @@ beforeAll(async () => {
  * Clean up before each test
  */
 beforeEach(async () => {
+  // Reset rate limiters to prevent test interference
+  resetAllRateLimiters()
+
   // Clean data tables but keep settings
   await testDb.$transaction([
     testDb.emailLog.deleteMany(),

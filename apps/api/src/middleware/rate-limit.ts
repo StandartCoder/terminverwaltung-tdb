@@ -97,3 +97,9 @@ export const cancellationRateLimiter = createRateLimiter('cancellation', {
   maxRequests: 5,
   message: 'Zu viele Stornierungsanfragen. Bitte warten Sie eine Minute.',
 })
+
+export function resetAllRateLimiters(): void {
+  for (const store of stores.values()) {
+    store.clear()
+  }
+}

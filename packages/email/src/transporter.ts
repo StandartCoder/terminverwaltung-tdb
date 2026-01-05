@@ -41,10 +41,19 @@ export function getFromAddress(): string {
   return DEFAULT_CONFIG.from
 }
 
+/**
+ * Sanitizes a string for use in email headers to prevent header injection attacks.
+ * Removes CR, LF, and null bytes that could be used to inject arbitrary headers.
+ */
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n\0]/g, '').replace(/"/g, "'")
+}
+
 export function formatFromAddress(fromName?: string): string {
   const email = DEFAULT_CONFIG.from
   if (fromName && fromName.trim()) {
-    return `"${fromName}" <${email}>`
+    const sanitized = sanitizeHeaderValue(fromName.trim())
+    return `"${sanitized}" <${email}>`
   }
   return email
 }

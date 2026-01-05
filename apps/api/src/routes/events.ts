@@ -60,25 +60,27 @@ const createEventSchema = z.object({
 eventsRouter.post('/', requireAdmin, zValidator('json', createEventSchema), async (c) => {
   const body = c.req.valid('json')
 
-  // If setting as active, deactivate all other events
-  if (body.isActive) {
-    await db.event.updateMany({
-      where: { isActive: true },
-      data: { isActive: false },
-    })
-  }
+  const event = await db.$transaction(async (tx) => {
+    // Deactivate all other events first if setting this one as active
+    if (body.isActive) {
+      await tx.event.updateMany({
+        where: { isActive: true },
+        data: { isActive: false },
+      })
+    }
 
-  const event = await db.event.create({
-    data: {
-      name: body.name,
-      description: body.description,
-      startDate: new Date(body.startDate),
-      endDate: new Date(body.endDate),
-      bookingOpenAt: body.bookingOpenAt ? new Date(body.bookingOpenAt) : null,
-      bookingCloseAt: body.bookingCloseAt ? new Date(body.bookingCloseAt) : null,
-      defaultSlotLength: body.defaultSlotLength,
-      isActive: body.isActive,
-    },
+    return tx.event.create({
+      data: {
+        name: body.name,
+        description: body.description,
+        startDate: new Date(body.startDate),
+        endDate: new Date(body.endDate),
+        bookingOpenAt: body.bookingOpenAt ? new Date(body.bookingOpenAt) : null,
+        bookingCloseAt: body.bookingCloseAt ? new Date(body.bookingCloseAt) : null,
+        defaultSlotLength: body.defaultSlotLength,
+        isActive: body.isActive,
+      },
+    })
   })
 
   return c.json({ data: event }, HTTP_STATUS.CREATED)
@@ -113,30 +115,32 @@ eventsRouter.patch('/:id', requireAdmin, zValidator('json', updateEventSchema), 
     )
   }
 
-  // If setting as active, deactivate all other events
-  if (body.isActive === true) {
-    await db.event.updateMany({
-      where: { isActive: true, id: { not: id } },
-      data: { isActive: false },
-    })
-  }
+  const event = await db.$transaction(async (tx) => {
+    // Deactivate all other events first if setting this one as active
+    if (body.isActive === true) {
+      await tx.event.updateMany({
+        where: { isActive: true, id: { not: id } },
+        data: { isActive: false },
+      })
+    }
 
-  const event = await db.event.update({
-    where: { id },
-    data: {
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.startDate && { startDate: new Date(body.startDate) }),
-      ...(body.endDate && { endDate: new Date(body.endDate) }),
-      ...(body.bookingOpenAt !== undefined && {
-        bookingOpenAt: body.bookingOpenAt ? new Date(body.bookingOpenAt) : null,
-      }),
-      ...(body.bookingCloseAt !== undefined && {
-        bookingCloseAt: body.bookingCloseAt ? new Date(body.bookingCloseAt) : null,
-      }),
-      ...(body.defaultSlotLength !== undefined && { defaultSlotLength: body.defaultSlotLength }),
-      ...(body.isActive !== undefined && { isActive: body.isActive }),
-    },
+    return tx.event.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.startDate && { startDate: new Date(body.startDate) }),
+        ...(body.endDate && { endDate: new Date(body.endDate) }),
+        ...(body.bookingOpenAt !== undefined && {
+          bookingOpenAt: body.bookingOpenAt ? new Date(body.bookingOpenAt) : null,
+        }),
+        ...(body.bookingCloseAt !== undefined && {
+          bookingCloseAt: body.bookingCloseAt ? new Date(body.bookingCloseAt) : null,
+        }),
+        ...(body.defaultSlotLength !== undefined && { defaultSlotLength: body.defaultSlotLength }),
+        ...(body.isActive !== undefined && { isActive: body.isActive }),
+      },
+    })
   })
 
   return c.json({ data: event })

@@ -30,6 +30,13 @@ import {
   type UpdateTeacherData,
 } from '@/lib/api'
 
+function generateSecurePassword(length = 16): string {
+  const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*'
+  const array = new Uint8Array(length)
+  crypto.getRandomValues(array)
+  return Array.from(array, (byte) => charset[byte % charset.length]).join('')
+}
+
 interface Props {
   teachers: Teacher[]
   departments: Department[]
@@ -224,11 +231,15 @@ export function TeachersManagement({ teachers, departments }: Props) {
   })
 
   const resetPassword = useMutation({
-    mutationFn: (id: string) => api.teachers.setPassword(id, 'temp1234'),
-    onSuccess: () => {
+    mutationFn: (id: string) => {
+      const newPassword = generateSecurePassword()
+      return api.teachers.setPassword(id, newPassword).then(() => newPassword)
+    },
+    onSuccess: (newPassword) => {
       toast({
         title: 'Passwort zurückgesetzt',
-        description: 'Temporäres Passwort: temp1234',
+        description: `Neues Passwort: ${newPassword}`,
+        duration: 30000,
       })
     },
     onError: (error: Error) => {

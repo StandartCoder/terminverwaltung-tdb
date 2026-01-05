@@ -6,7 +6,6 @@ import {
   ERROR_CODES,
   NotFoundError,
   SlotAlreadyBookedError,
-  AlreadyCancelledError,
   SameSlotError,
   ForbiddenError,
 } from '@terminverwaltung/shared'
@@ -246,17 +245,14 @@ bookingsRouter.post(
       },
     })
 
-    if (!booking) {
+    // Return same error for invalid code AND already cancelled to prevent enumeration
+    if (!booking || booking.status === 'CANCELLED') {
       return c.json(
-        { error: ERROR_CODES.INVALID_CANCELLATION_CODE, message: 'Ungültiger Buchungscode' },
+        {
+          error: ERROR_CODES.INVALID_CANCELLATION_CODE,
+          message: 'Ungültiger Buchungscode oder Buchung bereits storniert',
+        },
         HTTP_STATUS.NOT_FOUND
-      )
-    }
-
-    if (booking.status === 'CANCELLED') {
-      return c.json(
-        { error: ERROR_CODES.CONFLICT, message: 'Buchung wurde bereits storniert' },
-        HTTP_STATUS.CONFLICT
       )
     }
 
@@ -467,12 +463,9 @@ bookingsRouter.post('/rebook', bookingRateLimiter, zValidator('json', rebookSche
         },
       })
 
-      if (!existingBooking) {
-        throw new NotFoundError('Buchung nicht gefunden')
-      }
-
-      if (existingBooking.status === 'CANCELLED') {
-        throw new AlreadyCancelledError()
+      // Return same error for invalid code AND already cancelled to prevent enumeration
+      if (!existingBooking || existingBooking.status === 'CANCELLED') {
+        throw new NotFoundError('Ungültiger Buchungscode oder Buchung bereits storniert')
       }
 
       const newTimeSlot = await tx.timeSlot.findUnique({

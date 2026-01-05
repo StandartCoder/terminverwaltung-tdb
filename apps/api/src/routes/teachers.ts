@@ -17,6 +17,7 @@ import { Hono } from 'hono'
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { z } from 'zod'
 import { requireAuth, requireAdmin, requireSelfOrAdmin } from '../middleware/auth'
+import { loginRateLimiter } from '../middleware/rate-limit'
 import { getSettingNumber, getSettingBoolean } from '../services/settings'
 
 export const teachersRouter = new Hono()
@@ -227,57 +228,62 @@ teachersRouter.post('/', requireAdmin, zValidator('json', createTeacherSchema), 
   return c.json({ data: teacher }, HTTP_STATUS.CREATED)
 })
 
-teachersRouter.post('/login', zValidator('json', teacherLoginSchema), async (c) => {
-  const { email, password } = c.req.valid('json')
+teachersRouter.post(
+  '/login',
+  loginRateLimiter,
+  zValidator('json', teacherLoginSchema),
+  async (c) => {
+    const { email, password } = c.req.valid('json')
 
-  const teacher = await db.teacher.findUnique({
-    where: { email },
-    include: { department: true },
-  })
+    const teacher = await db.teacher.findUnique({
+      where: { email },
+      include: { department: true },
+    })
 
-  if (!teacher) {
-    return c.json(
-      { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
-      HTTP_STATUS.UNAUTHORIZED
-    )
+    if (!teacher) {
+      return c.json(
+        { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
+        HTTP_STATUS.UNAUTHORIZED
+      )
+    }
+
+    const isValidPassword = await verifyPassword(password, teacher.passwordHash)
+    if (!isValidPassword) {
+      return c.json(
+        { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
+        HTTP_STATUS.UNAUTHORIZED
+      )
+    }
+
+    if (!teacher.isActive) {
+      return c.json(
+        { error: ERROR_CODES.FORBIDDEN, message: 'Konto deaktiviert' },
+        HTTP_STATUS.FORBIDDEN
+      )
+    }
+
+    const tokens = generateTokenPair({
+      sub: teacher.id,
+      email: teacher.email,
+      isAdmin: teacher.isAdmin,
+    })
+
+    setCookie(c, 'access_token', tokens.accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    })
+
+    setCookie(c, 'refresh_token', tokens.refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    })
+
+    const { passwordHash: _hash, ...teacherData } = teacher
+    return c.json({
+      data: { teacher: teacherData },
+    })
   }
-
-  const isValidPassword = await verifyPassword(password, teacher.passwordHash)
-  if (!isValidPassword) {
-    return c.json(
-      { error: ERROR_CODES.UNAUTHORIZED, message: 'Ungültige Anmeldedaten' },
-      HTTP_STATUS.UNAUTHORIZED
-    )
-  }
-
-  if (!teacher.isActive) {
-    return c.json(
-      { error: ERROR_CODES.FORBIDDEN, message: 'Konto deaktiviert' },
-      HTTP_STATUS.FORBIDDEN
-    )
-  }
-
-  const tokens = generateTokenPair({
-    sub: teacher.id,
-    email: teacher.email,
-    isAdmin: teacher.isAdmin,
-  })
-
-  setCookie(c, 'access_token', tokens.accessToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: ACCESS_TOKEN_MAX_AGE,
-  })
-
-  setCookie(c, 'refresh_token', tokens.refreshToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_MAX_AGE,
-  })
-
-  const { passwordHash: _hash, ...teacherData } = teacher
-  return c.json({
-    data: { teacher: teacherData },
-  })
-})
+)
 
 teachersRouter.post('/refresh', async (c) => {
   const refreshToken = getCookie(c, 'refresh_token')

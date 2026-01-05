@@ -20,6 +20,11 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth, requireAdmin } from '../middleware/auth'
 import {
+  bookingRateLimiter,
+  cancellationRateLimiter,
+  codeCheckRateLimiter,
+} from '../middleware/rate-limit'
+import {
   sendConfirmationWithLogging,
   sendCancellationWithLogging,
   sendRebookWithLogging,
@@ -55,7 +60,7 @@ async function checkNoticeHours(
   return { allowed: true }
 }
 
-bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
+bookingsRouter.post('/', bookingRateLimiter, zValidator('json', createBookingSchema), async (c) => {
   const body = c.req.valid('json')
 
   // Check if booking is enabled
@@ -217,84 +222,89 @@ bookingsRouter.post('/', zValidator('json', createBookingSchema), async (c) => {
   )
 })
 
-bookingsRouter.post('/cancel', zValidator('json', cancelBookingSchema), async (c) => {
-  const { cancellationCode } = c.req.valid('json')
+bookingsRouter.post(
+  '/cancel',
+  cancellationRateLimiter,
+  zValidator('json', cancelBookingSchema),
+  async (c) => {
+    const { cancellationCode } = c.req.valid('json')
 
-  // Check if cancellation is allowed
-  const allowCancel = await getSettingBoolean('allow_cancel')
-  if (!allowCancel) {
-    return c.json(
-      { error: ERROR_CODES.FORBIDDEN, message: 'Stornierungen sind derzeit deaktiviert' },
-      HTTP_STATUS.FORBIDDEN
-    )
-  }
-
-  const booking = await db.booking.findUnique({
-    where: { cancellationCode },
-    include: {
-      teacher: { include: { department: true } },
-      timeSlot: true,
-    },
-  })
-
-  if (!booking) {
-    return c.json(
-      { error: ERROR_CODES.INVALID_CANCELLATION_CODE, message: 'Ungültiger Buchungscode' },
-      HTTP_STATUS.NOT_FOUND
-    )
-  }
-
-  if (booking.status === 'CANCELLED') {
-    return c.json(
-      { error: ERROR_CODES.CONFLICT, message: 'Buchung wurde bereits storniert' },
-      HTTP_STATUS.CONFLICT
-    )
-  }
-
-  // Check cancel notice hours
-  const noticeCheck = await checkNoticeHours(
-    booking.timeSlot.date,
-    booking.timeSlot.startTime,
-    'cancel_notice_hours'
-  )
-  if (!noticeCheck.allowed) {
-    return c.json(
-      { error: ERROR_CODES.FORBIDDEN, message: noticeCheck.message },
-      HTTP_STATUS.FORBIDDEN
-    )
-  }
-
-  await db.$transaction([
-    db.booking.update({
-      where: { id: booking.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-    }),
-    db.timeSlot.update({
-      where: { id: booking.timeSlotId },
-      data: { status: 'AVAILABLE' },
-    }),
-  ])
-
-  // Track email warnings
-  const warnings: string[] = []
-
-  // Send email if enabled
-  const emailEnabled = await getSettingBoolean('email_notifications')
-  if (emailEnabled) {
-    const emailSettings = await getEmailSettings()
-    const cancelResult = await sendCancellationWithLogging(booking, emailSettings)
-    if (!cancelResult.success) {
-      warnings.push('Die Stornierungsbestätigung konnte nicht per E-Mail gesendet werden.')
+    // Check if cancellation is allowed
+    const allowCancel = await getSettingBoolean('allow_cancel')
+    if (!allowCancel) {
+      return c.json(
+        { error: ERROR_CODES.FORBIDDEN, message: 'Stornierungen sind derzeit deaktiviert' },
+        HTTP_STATUS.FORBIDDEN
+      )
     }
+
+    const booking = await db.booking.findUnique({
+      where: { cancellationCode },
+      include: {
+        teacher: { include: { department: true } },
+        timeSlot: true,
+      },
+    })
+
+    if (!booking) {
+      return c.json(
+        { error: ERROR_CODES.INVALID_CANCELLATION_CODE, message: 'Ungültiger Buchungscode' },
+        HTTP_STATUS.NOT_FOUND
+      )
+    }
+
+    if (booking.status === 'CANCELLED') {
+      return c.json(
+        { error: ERROR_CODES.CONFLICT, message: 'Buchung wurde bereits storniert' },
+        HTTP_STATUS.CONFLICT
+      )
+    }
+
+    // Check cancel notice hours
+    const noticeCheck = await checkNoticeHours(
+      booking.timeSlot.date,
+      booking.timeSlot.startTime,
+      'cancel_notice_hours'
+    )
+    if (!noticeCheck.allowed) {
+      return c.json(
+        { error: ERROR_CODES.FORBIDDEN, message: noticeCheck.message },
+        HTTP_STATUS.FORBIDDEN
+      )
+    }
+
+    await db.$transaction([
+      db.booking.update({
+        where: { id: booking.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      }),
+      db.timeSlot.update({
+        where: { id: booking.timeSlotId },
+        data: { status: 'AVAILABLE' },
+      }),
+    ])
+
+    // Track email warnings
+    const warnings: string[] = []
+
+    // Send email if enabled
+    const emailEnabled = await getSettingBoolean('email_notifications')
+    if (emailEnabled) {
+      const emailSettings = await getEmailSettings()
+      const cancelResult = await sendCancellationWithLogging(booking, emailSettings)
+      if (!cancelResult.success) {
+        warnings.push('Die Stornierungsbestätigung konnte nicht per E-Mail gesendet werden.')
+      }
+    }
+
+    return c.json({
+      message: 'Buchung erfolgreich storniert',
+      ...(warnings.length > 0 && { warnings }),
+    })
   }
+)
 
-  return c.json({
-    message: 'Buchung erfolgreich storniert',
-    ...(warnings.length > 0 && { warnings }),
-  })
-})
-
-bookingsRouter.get('/check/:code', async (c) => {
+bookingsRouter.get('/check/:code', codeCheckRateLimiter, async (c) => {
   const code = c.req.param('code')
 
   const booking = await db.booking.findUnique({
@@ -435,7 +445,7 @@ const rebookSchema = z.object({
   newTimeSlotId: idSchema,
 })
 
-bookingsRouter.post('/rebook', zValidator('json', rebookSchema), async (c) => {
+bookingsRouter.post('/rebook', bookingRateLimiter, zValidator('json', rebookSchema), async (c) => {
   const { cancellationCode, newTimeSlotId } = c.req.valid('json')
 
   // Check if rebooking is allowed

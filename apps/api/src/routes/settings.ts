@@ -78,7 +78,7 @@ const bulkUpdateSchema = z.object({
 settingsRouter.put('/bulk', requireAdmin, zValidator('json', bulkUpdateSchema), async (c) => {
   const { settings } = c.req.valid('json')
 
-  const results = await Promise.all(
+  const results = await db.$transaction(
     settings.map((s) =>
       db.setting.upsert({
         where: { key: s.key },

@@ -20,6 +20,7 @@ import {
   User,
   Users,
 } from 'lucide-react'
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -251,18 +252,18 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <a
+            <Link
               href="/buchung/verwalten"
               className="text-muted-foreground hover:text-foreground text-sm transition-colors"
             >
               Buchung verwalten
-            </a>
-            <a
+            </Link>
+            <Link
               href="/lehrer"
               className="text-muted-foreground hover:text-foreground text-sm transition-colors"
             >
               Lehrkraft-Login
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -869,18 +870,18 @@ export default function HomePage() {
             <div>
               <h3 className="font-semibold">Rechtliches</h3>
               <div className="mt-2 flex flex-col gap-1">
-                <a
+                <Link
                   href="/impressum"
                   className="text-muted-foreground hover:text-foreground text-sm hover:underline"
                 >
                   Impressum
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/datenschutz"
                   className="text-muted-foreground hover:text-foreground text-sm hover:underline"
                 >
                   Datenschutzerklärung
-                </a>
+                </Link>
               </div>
             </div>
           </div>

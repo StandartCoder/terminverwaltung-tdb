@@ -406,20 +406,24 @@ bookingsRouter.patch(
       )
     }
 
-    const updated = await db.booking.update({
-      where: { id },
-      data: {
-        status,
-        ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
-      },
-    })
-
-    if (status === 'CANCELLED') {
-      await db.timeSlot.update({
-        where: { id: booking.timeSlotId },
-        data: { status: 'AVAILABLE' },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await tx.booking.update({
+        where: { id },
+        data: {
+          status,
+          ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
+        },
       })
-    }
+
+      if (status === 'CANCELLED') {
+        await tx.timeSlot.update({
+          where: { id: booking.timeSlotId },
+          data: { status: 'AVAILABLE' },
+        })
+      }
+
+      return result
+    })
 
     return c.json({ data: updated })
   }

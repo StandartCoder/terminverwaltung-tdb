@@ -19,6 +19,51 @@ import { getSetting, getSettingNumber } from '../services/settings'
 
 export const timeslotsRouter = new Hono()
 
+async function getActiveEventForDate(date: Date): Promise<{
+  valid: boolean
+  error?: { code: string; message: string; status: number }
+}> {
+  const activeEvent = await db.event.findFirst({
+    where: { isActive: true },
+    select: { id: true, startDate: true, endDate: true, name: true },
+  })
+
+  if (!activeEvent) {
+    return {
+      valid: false,
+      error: {
+        code: ERROR_CODES.FORBIDDEN,
+        message:
+          'Keine aktive Veranstaltung vorhanden. Zeitslots können nur während einer aktiven Veranstaltung erstellt werden.',
+        status: HTTP_STATUS.FORBIDDEN,
+      },
+    }
+  }
+
+  const slotDate = new Date(date)
+  slotDate.setHours(0, 0, 0, 0)
+
+  const eventStart = new Date(activeEvent.startDate)
+  eventStart.setHours(0, 0, 0, 0)
+
+  const eventEnd = new Date(activeEvent.endDate)
+  eventEnd.setHours(0, 0, 0, 0)
+
+  if (slotDate < eventStart || slotDate > eventEnd) {
+    const formatDate = (d: Date) => d.toLocaleDateString('de-DE')
+    return {
+      valid: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: `Das Datum liegt außerhalb des Veranstaltungszeitraums (${formatDate(eventStart)} - ${formatDate(eventEnd)}).`,
+        status: HTTP_STATUS.BAD_REQUEST,
+      },
+    }
+  }
+
+  return { valid: true }
+}
+
 // Get timeslot settings (defaults for generating slots)
 timeslotsRouter.get('/settings', async (c) => {
   const [slotDuration, slotBuffer, dayStart, dayEnd] = await Promise.all([
@@ -164,6 +209,16 @@ timeslotsRouter.post('/', requireAuth, zValidator('json', createTimeSlotSchema),
   }
 
   const dateObj = parseDateString(body.date)
+
+  // Validate active event and date range
+  const eventValidation = await getActiveEventForDate(dateObj)
+  if (!eventValidation.valid) {
+    return c.json(
+      { error: eventValidation.error!.code, message: eventValidation.error!.message },
+      eventValidation.error!.status as 400 | 403
+    )
+  }
+
   const startTimeObj = parseTimeString(body.startTime)
   const endTimeObj = parseTimeString(body.endTime)
 
@@ -224,6 +279,15 @@ timeslotsRouter.post('/bulk', requireAuth, zValidator('json', createBulkSchema),
   }
 
   const dateObj = parseDateString(date)
+
+  // Validate active event and date range
+  const eventValidation = await getActiveEventForDate(dateObj)
+  if (!eventValidation.valid) {
+    return c.json(
+      { error: eventValidation.error!.code, message: eventValidation.error!.message },
+      eventValidation.error!.status as 400 | 403
+    )
+  }
 
   const createdSlots = await db.$transaction(
     slots.map((slot) =>
@@ -368,6 +432,17 @@ timeslotsRouter.post(
       )
     }
 
+    const dateObj = parseDateString(body.date)
+
+    // Validate active event and date range
+    const eventValidation = await getActiveEventForDate(dateObj)
+    if (!eventValidation.valid) {
+      return c.json(
+        { error: eventValidation.error!.code, message: eventValidation.error!.message },
+        eventValidation.error!.status as 400 | 403
+      )
+    }
+
     // Get settings, use provided values or fall back to settings
     const [settingDuration, settingBuffer, settingDayStart, settingDayEnd] = await Promise.all([
       getSettingNumber('slot_duration_minutes'),
@@ -380,8 +455,6 @@ timeslotsRouter.post(
     const slotBuffer = (body.slotBufferMinutes ?? settingBuffer) || 0
     const dayStart = (body.startTime ?? settingDayStart) || '08:00'
     const dayEnd = (body.endTime ?? settingDayEnd) || '18:00'
-
-    const dateObj = parseDateString(body.date)
 
     // Parse start and end times
     const [startHour, startMin] = dayStart.split(':').map(Number)

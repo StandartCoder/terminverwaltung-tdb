@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   AlertCircle,
+  AlertTriangle,
   Building2,
   Calendar,
   CheckCircle2,
@@ -133,6 +134,37 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
 
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  // Fetch active event to validate date range
+  const { data: activeEventData } = useQuery({
+    queryKey: ['activeEvent'],
+    queryFn: () => api.events.getActive(),
+    retry: false,
+  })
+
+  const activeEvent = activeEventData?.data
+  const hasActiveEvent = !!activeEvent
+
+  // Get event date range for input constraints
+  const eventDateRange = useMemo(() => {
+    if (!activeEvent) return { min: '', max: '' }
+    return {
+      min: activeEvent.startDate.split('T')[0],
+      max: activeEvent.endDate.split('T')[0],
+    }
+  }, [activeEvent])
+
+  // Check if a date is within the event range
+  const isDateInEventRange = (dateStr: string): boolean => {
+    if (!activeEvent || !dateStr) return false
+    const date = new Date(dateStr)
+    const start = new Date(activeEvent.startDate)
+    const end = new Date(activeEvent.endDate)
+    date.setHours(0, 0, 0, 0)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+    return date >= start && date <= end
+  }
 
   // Fetch settings for defaults
   const { data: settingsData } = useQuery({
@@ -299,16 +331,44 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
           <p className="text-muted-foreground">Verwalten Sie Ihre verfügbaren Zeitslots</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowSingleCreate(true)}>
+          <Button
+            variant="outline"
+            onClick={() => setShowSingleCreate(true)}
+            disabled={!hasActiveEvent}
+            title={!hasActiveEvent ? 'Keine aktive Veranstaltung' : undefined}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Einzeln
           </Button>
-          <Button onClick={() => setShowBulkCreate(true)}>
+          <Button
+            onClick={() => setShowBulkCreate(true)}
+            disabled={!hasActiveEvent}
+            title={!hasActiveEvent ? 'Keine aktive Veranstaltung' : undefined}
+          >
             <Sparkles className="mr-2 h-4 w-4" />
             Termine generieren
           </Button>
         </div>
       </div>
+
+      {/* No active event warning */}
+      {!hasActiveEvent && (
+        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+          <CardContent className="flex items-center gap-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-medium text-amber-800 dark:text-amber-200">
+                Keine aktive Veranstaltung
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Zeitslots können nur erstellt werden, wenn eine Veranstaltung aktiv ist.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
@@ -393,7 +453,14 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
                   type="date"
                   value={singleDate}
                   onChange={(e) => setSingleDate(e.target.value)}
+                  min={eventDateRange.min}
+                  max={eventDateRange.max}
                 />
+                {singleDate && !isDateInEventRange(singleDate) && (
+                  <p className="text-xs text-amber-600">
+                    Datum liegt außerhalb des Veranstaltungszeitraums
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Startzeit</Label>
@@ -415,7 +482,9 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
             <div className="flex gap-2">
               <Button
                 onClick={() => createSlotMutation.mutate()}
-                disabled={!singleDate || createSlotMutation.isPending}
+                disabled={
+                  !singleDate || !isDateInEventRange(singleDate) || createSlotMutation.isPending
+                }
               >
                 <Plus className="mr-2 h-4 w-4" />
                 {createSlotMutation.isPending ? 'Erstelle...' : 'Erstellen'}
@@ -456,7 +525,18 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label>Datum *</Label>
-                <Input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={bulkDate}
+                  onChange={(e) => setBulkDate(e.target.value)}
+                  min={eventDateRange.min}
+                  max={eventDateRange.max}
+                />
+                {bulkDate && !isDateInEventRange(bulkDate) && (
+                  <p className="text-xs text-amber-600">
+                    Datum liegt außerhalb des Veranstaltungszeitraums
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Von</Label>
@@ -515,7 +595,12 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
             <div className="flex gap-2">
               <Button
                 onClick={() => generateSlotsMutation.mutate()}
-                disabled={!bulkDate || previewSlots.length === 0 || generateSlotsMutation.isPending}
+                disabled={
+                  !bulkDate ||
+                  !isDateInEventRange(bulkDate) ||
+                  previewSlots.length === 0 ||
+                  generateSlotsMutation.isPending
+                }
               >
                 <Sparkles className="mr-2 h-4 w-4" />
                 {generateSlotsMutation.isPending
@@ -628,7 +713,11 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
                 <div className="text-muted-foreground py-12 text-center">
                   <AlertCircle className="mx-auto mb-4 h-12 w-12 opacity-50" />
                   <p className="mb-4">Keine Termine für diesen Tag</p>
-                  <Button variant="outline" onClick={() => setShowBulkCreate(true)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowBulkCreate(true)}
+                    disabled={!hasActiveEvent}
+                  >
                     <Sparkles className="mr-2 h-4 w-4" />
                     Termine generieren
                   </Button>

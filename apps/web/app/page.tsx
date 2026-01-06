@@ -419,6 +419,7 @@ export default function HomePage() {
                           </div>
                           {i < arr.length - 1 && (
                             <div
+                              style={{ marginTop: '-15px' }}
                               className={`mx-2 h-0.5 w-8 transition-colors lg:w-12 ${
                                 isCompleted ? 'bg-primary/40' : 'bg-muted'
                               }`}

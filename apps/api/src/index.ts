@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import { Prisma } from '@terminverwaltung/database'
 import { ERROR_CODES, HTTP_STATUS, isAppError } from '@terminverwaltung/shared'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
@@ -41,6 +42,14 @@ app.onError((err, c) => {
 
   if (isAppError(err)) {
     return c.json(err.toJSON(), err.statusCode as ContentfulStatusCode)
+  }
+
+  // Handle Prisma serialization errors (concurrent transaction conflicts)
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+    return c.json(
+      { error: ERROR_CODES.SLOT_ALREADY_BOOKED, message: 'Dieser Termin wurde gerade vergeben' },
+      HTTP_STATUS.CONFLICT
+    )
   }
 
   return c.json(

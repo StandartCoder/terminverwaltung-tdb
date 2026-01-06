@@ -112,10 +112,12 @@ describe('Bookings API', () => {
       expect(res.status).toBe(HTTP_STATUS.CONFLICT)
     })
 
-    // TODO: API returns 400 for invalid IDs, should return 404 for non-existent resources
-    it.skip('rejects booking for non-existent timeslot', async () => {
+    it('rejects booking for non-existent timeslot', async () => {
+      // Use a valid CUID format that doesn't exist in the database
+      const nonExistentCuid = 'clx1234567890abcdefghijkl'
+
       const res = await post('/api/bookings', {
-        timeSlotId: 'non-existent-id',
+        timeSlotId: nonExistentCuid,
         companyName: 'Test GmbH',
         companyEmail: 'test@company.de',
         studentCount: 1,
@@ -124,8 +126,7 @@ describe('Bookings API', () => {
       expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
     })
 
-    // TODO: booking_enabled setting check not implemented in API
-    it.skip('rejects booking when booking is disabled', async () => {
+    it('rejects booking when booking is disabled', async () => {
       await setBookingEnabled(false)
 
       const teacher = await createTeacher()
@@ -144,8 +145,7 @@ describe('Bookings API', () => {
       await setBookingEnabled(true)
     })
 
-    // TODO: max_bookings_per_email setting check not implemented in API
-    it.skip('enforces max bookings per company email', async () => {
+    it('enforces max bookings per company email', async () => {
       await setMaxBookingsPerCompany(2)
 
       const teacher = await createTeacher()
@@ -185,8 +185,7 @@ describe('Bookings API', () => {
       await setMaxBookingsPerCompany(0)
     })
 
-    // TODO: require_phone setting check not implemented in API
-    it.skip('requires phone when setting enabled', async () => {
+    it('requires phone when setting enabled', async () => {
       await setSetting('require_phone', 'true')
 
       const teacher = await createTeacher()
@@ -261,8 +260,7 @@ describe('Bookings API', () => {
       expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
     })
 
-    // TODO: cancellation_enabled setting check not implemented in API
-    it.skip('rejects cancellation when disabled', async () => {
+    it('rejects cancellation when disabled', async () => {
       await setAllowCancel(false)
 
       const teacher = await createTeacher()
@@ -322,8 +320,7 @@ describe('Bookings API', () => {
       expect(getError(res.body)?.error).toBe('SLOT_ALREADY_BOOKED')
     })
 
-    // TODO: API returns SLOT_ALREADY_BOOKED instead of SAME_SLOT for same-slot rebooking
-    it.skip('rejects rebooking to same slot', async () => {
+    it('rejects rebooking to same slot', async () => {
       const teacher = await createTeacher()
       const slot = await createTimeSlot({ teacherId: teacher.id })
       const booking = await createBooking({ timeSlotId: slot.id, teacherId: teacher.id })
@@ -337,8 +334,7 @@ describe('Bookings API', () => {
       expect(getError(res.body)?.error).toBe('SAME_SLOT')
     })
 
-    // TODO: rebooking_enabled setting check not implemented in API
-    it.skip('rejects rebooking when disabled', async () => {
+    it('rejects rebooking when disabled', async () => {
       await setAllowRebook(false)
 
       const teacher = await createTeacher()
@@ -534,8 +530,7 @@ describe('Bookings API', () => {
   })
 
   describe('Race Condition Prevention', () => {
-    // TODO: Concurrent booking race condition not handled properly - some requests return 500
-    it.skip('prevents double booking of same slot via concurrent requests', async () => {
+    it('prevents double booking of same slot via concurrent requests', async () => {
       const teacher = await createTeacher()
       const timeSlot = await createTimeSlot({ teacherId: teacher.id })
 
@@ -563,8 +558,7 @@ describe('Bookings API', () => {
       expect(bookings.length).toBe(1)
     })
 
-    // TODO: Prisma deadlock errors not caught and converted to 409 Conflict
-    it.skip('prevents concurrent rebooking race condition', async () => {
+    it('prevents concurrent rebooking race condition', async () => {
       const teacher = await createTeacher()
       const [originalSlot, targetSlot] = await createMultipleTimeSlots(teacher.id, '2025-06-15', 2)
 

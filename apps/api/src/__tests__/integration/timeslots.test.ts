@@ -293,14 +293,17 @@ describe('TimeSlots API', () => {
       expect(res.status).toBe(HTTP_STATUS.CONFLICT)
     })
 
-    // TODO: API returns 400 instead of 404 for non-existent teacher
-    it.skip('validates teacher exists', async () => {
+    it('validates teacher exists', async () => {
+      await createEvent()
       const admin = await createAdmin()
+
+      // Use a valid CUID format that doesn't exist in the database
+      const nonExistentCuid = 'clx1234567890abcdefghijkl'
 
       const res = await post(
         '/api/timeslots',
         {
-          teacherId: 'non-existent-id',
+          teacherId: nonExistentCuid,
           date: '2025-06-15',
           startTime: '09:00',
           endTime: '09:20',
@@ -422,8 +425,7 @@ describe('TimeSlots API', () => {
       expect(body.count).toBe(2) // 09:00-09:20, 09:30-09:50
     })
 
-    // TODO: Settings from database not fully read/used when generating timeslots
-    it.skip('uses settings from database when not provided', async () => {
+    it('uses settings from database when not provided', async () => {
       await createEvent() // Need active event for timeslot creation
       await setSetting('slot_duration_minutes', '15')
       await setSetting('day_start_time', '08:00')

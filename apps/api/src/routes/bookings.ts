@@ -480,12 +480,13 @@ bookingsRouter.post('/rebook', bookingRateLimiter, zValidator('json', rebookSche
         throw new NotFoundError('Neuer Zeitslot nicht gefunden')
       }
 
-      if (newTimeSlot.status !== 'AVAILABLE' || newTimeSlot.booking) {
-        throw new SlotAlreadyBookedError('Der neue Termin ist bereits vergeben')
-      }
-
+      // Check same slot first (before checking availability since same slot would be BOOKED)
       if (existingBooking.timeSlotId === newTimeSlotId) {
         throw new SameSlotError()
+      }
+
+      if (newTimeSlot.status !== 'AVAILABLE' || newTimeSlot.booking) {
+        throw new SlotAlreadyBookedError('Der neue Termin ist bereits vergeben')
       }
 
       // Check booking notice hours for the new slot

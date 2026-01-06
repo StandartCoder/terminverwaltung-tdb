@@ -6,6 +6,7 @@
 import { hashPassword, generateTokenPair } from '@terminverwaltung/auth'
 import type { Department, Teacher, TimeSlot, Booking, Event } from '@terminverwaltung/database'
 import { parseDateString, parseTimeString } from '@terminverwaltung/shared'
+import { invalidateSettingsCache } from '../../services/settings'
 import { testDb } from './setup'
 
 // Counter for unique values
@@ -245,6 +246,8 @@ export async function setSetting(key: string, value: string): Promise<void> {
     update: { value },
     create: { key, value },
   })
+  // Invalidate the settings cache so the new value is read immediately
+  invalidateSettingsCache()
 }
 
 export async function setBookingEnabled(enabled: boolean): Promise<void> {

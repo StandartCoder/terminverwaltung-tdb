@@ -85,7 +85,7 @@ export const createTeacherSchema = z.object({
   firstName: z.string().min(1, 'Vorname erforderlich'),
   lastName: z.string().min(1, 'Nachname erforderlich'),
   room: z.string().optional().nullable(),
-  departmentId: idSchema,
+  departmentId: idSchema.optional().nullable(),
   isAdmin: z.boolean().optional().default(false),
 })
 

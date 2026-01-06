@@ -67,7 +67,7 @@ export class AlreadyCancelledError extends AppError {
 }
 
 export class SameSlotError extends AppError {
-  readonly code = ERROR_CODES.CONFLICT
+  readonly code = ERROR_CODES.SAME_SLOT
   readonly statusCode = HTTP_STATUS.CONFLICT
 
   constructor(message = 'Sie haben bereits diesen Termin gebucht') {

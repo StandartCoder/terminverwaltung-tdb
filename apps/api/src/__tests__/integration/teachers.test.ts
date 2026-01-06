@@ -245,8 +245,7 @@ describe('Teachers API', () => {
       expect(res.status).toBe(HTTP_STATUS.FORBIDDEN)
     })
 
-    // TODO: API validation returns 400, need to investigate why
-    it.skip('allows admin to create teacher', async () => {
+    it('allows admin to create teacher', async () => {
       const admin = await createAdmin()
 
       const res = await post(
@@ -265,8 +264,7 @@ describe('Teachers API', () => {
       expect(data?.email).toBe('created@test.de')
     })
 
-    // TODO: API returns 400 instead of 409 for duplicate email
-    it.skip('rejects duplicate email', async () => {
+    it('rejects duplicate email', async () => {
       const admin = await createAdmin()
       await createTeacher({ email: 'duplicate@test.de' })
 
@@ -284,8 +282,7 @@ describe('Teachers API', () => {
       expect(res.status).toBe(HTTP_STATUS.CONFLICT)
     })
 
-    // TODO: min_password_length setting validation not implemented in API
-    it.skip('enforces minimum password length', async () => {
+    it('enforces minimum password length', async () => {
       await setSetting('min_password_length', '8')
       const admin = await createAdmin()
 
@@ -293,7 +290,7 @@ describe('Teachers API', () => {
         '/api/teachers',
         {
           email: 'short@test.de',
-          password: '12345', // Too short
+          password: '1234567', // 7 chars: passes Zod min(6) but fails dynamic min(8)
           firstName: 'Short',
           lastName: 'Pass',
         },
@@ -308,9 +305,11 @@ describe('Teachers API', () => {
       await setSetting('min_password_length', '6')
     })
 
-    // TODO: API returns 400 instead of 404 for non-existent department
-    it.skip('validates department exists', async () => {
+    it('validates department exists', async () => {
       const admin = await createAdmin()
+
+      // Use a valid CUID format that doesn't exist in the database
+      const nonExistentCuid = 'clx1234567890abcdefghijkl'
 
       const res = await post(
         '/api/teachers',
@@ -319,7 +318,7 @@ describe('Teachers API', () => {
           password: 'password123',
           firstName: 'No',
           lastName: 'Dept',
-          departmentId: 'non-existent-dept',
+          departmentId: nonExistentCuid,
         },
         { auth: admin }
       )

@@ -142,14 +142,19 @@ timeslotsRouter.get('/available', zValidator('query', timeSlotFilterSchema), asy
 })
 
 timeslotsRouter.get('/dates', async (c) => {
-  const dates = await db.timeSlot.findMany({
+  const dates = await db.timeSlot.groupBy({
+    by: ['date'],
     where: { status: 'AVAILABLE' },
-    select: { date: true },
-    distinct: ['date'],
+    _count: { id: true },
     orderBy: { date: 'asc' },
   })
 
-  return c.json({ data: dates.map((d) => d.date) })
+  return c.json({
+    data: dates.map((d) => ({
+      date: d.date,
+      availableCount: d._count.id,
+    })),
+  })
 })
 
 timeslotsRouter.get('/:id', async (c) => {

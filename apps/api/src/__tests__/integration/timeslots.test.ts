@@ -155,7 +155,7 @@ describe('TimeSlots API', () => {
   })
 
   describe('GET /api/timeslots/dates - List Available Dates', () => {
-    it('returns distinct dates with available slots', async () => {
+    it('returns distinct dates with available slots and counts', async () => {
       const teacher = await createTeacher()
       await createTimeSlot({ teacherId: teacher.id, date: '2025-06-15' })
       await createTimeSlot({
@@ -169,8 +169,12 @@ describe('TimeSlots API', () => {
       const res = await get('/api/timeslots/dates')
 
       expect(res.status).toBe(HTTP_STATUS.OK)
-      const data = getData<string[]>(res.body)
+      const data = getData<{ date: string; availableCount: number }[]>(res.body)
       expect(data?.length).toBe(2)
+      // First date has 2 available slots
+      expect(data?.[0].availableCount).toBe(2)
+      // Second date has 1 available slot
+      expect(data?.[1].availableCount).toBe(1)
     })
   })
 

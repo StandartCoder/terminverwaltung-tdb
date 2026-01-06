@@ -116,7 +116,7 @@ function SlotRowMenu({
 }
 
 export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [selectedDate, setSelectedDate] = useState<string>('')
   const [showBulkCreate, setShowBulkCreate] = useState(false)
   const [showSingleCreate, setShowSingleCreate] = useState(false)
 
@@ -153,6 +153,13 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
       max: activeEvent.endDate.split('T')[0],
     }
   }, [activeEvent])
+
+  // Set selectedDate to event start date when event loads
+  useEffect(() => {
+    if (activeEvent && !selectedDate) {
+      setSelectedDate(activeEvent.startDate.split('T')[0])
+    }
+  }, [activeEvent, selectedDate])
 
   // Check if a date is within the event range
   const isDateInEventRange = (dateStr: string): boolean => {
@@ -317,9 +324,14 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
 
   // Navigate date
   const navigateDate = (days: number) => {
+    if (!selectedDate) return
     const current = parseISO(selectedDate)
     current.setDate(current.getDate() + days)
-    setSelectedDate(format(current, 'yyyy-MM-dd'))
+    const newDate = format(current, 'yyyy-MM-dd')
+    // Clamp to event date range
+    if (eventDateRange.min && newDate < eventDateRange.min) return
+    if (eventDateRange.max && newDate > eventDateRange.max) return
+    setSelectedDate(newDate)
   }
 
   return (
@@ -619,111 +631,137 @@ export function AppointmentsTab({ teacherId }: AppointmentsTabProps) {
         {/* Slots List */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle>Zeitslots</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => navigateDate(-1)}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Input
-                    type="date"
-                    className="w-auto"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                  <Button variant="ghost" size="icon" onClick={() => navigateDate(1)}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <CardDescription>{formatDateFull(selectedDate)}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingSlots ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-muted h-14 animate-pulse rounded-lg" />
-                  ))}
-                </div>
-              ) : slots.length > 0 ? (
-                <div className="space-y-2">
-                  {slots.map((slot) => (
-                    <div
-                      key={slot.id}
-                      className={`flex items-center justify-between rounded-lg border p-3 transition-all ${
-                        slot.status === 'BOOKED'
-                          ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
-                          : slot.status === 'BLOCKED'
-                            ? 'bg-muted/50 border-dashed'
-                            : 'bg-card hover:shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
-                          <p className="text-lg font-semibold">{formatTime(slot.startTime)}</p>
-                          <p className="text-muted-foreground text-xs">
-                            bis {formatTime(slot.endTime)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {slot.status === 'BOOKED' && (
-                            <>
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Gebucht
-                              </span>
-                              {slot.booking && (
-                                <span className="text-muted-foreground text-sm">
-                                  {slot.booking.companyName}
+            {hasActiveEvent ? (
+              <>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Zeitslots</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigateDate(-1)}
+                        disabled={!selectedDate || selectedDate <= eventDateRange.min}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="date"
+                        className="w-auto"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        min={eventDateRange.min}
+                        max={eventDateRange.max}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigateDate(1)}
+                        disabled={!selectedDate || selectedDate >= eventDateRange.max}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {selectedDate && (
+                    <CardDescription>{formatDateFull(selectedDate)}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {loadingSlots ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="bg-muted h-14 animate-pulse rounded-lg" />
+                      ))}
+                    </div>
+                  ) : slots.length > 0 ? (
+                    <div className="space-y-2">
+                      {slots.map((slot) => (
+                        <div
+                          key={slot.id}
+                          className={`flex items-center justify-between rounded-lg border p-3 transition-all ${
+                            slot.status === 'BOOKED'
+                              ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
+                              : slot.status === 'BLOCKED'
+                                ? 'bg-muted/50 border-dashed'
+                                : 'bg-card hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="text-center">
+                              <p className="text-lg font-semibold">{formatTime(slot.startTime)}</p>
+                              <p className="text-muted-foreground text-xs">
+                                bis {formatTime(slot.endTime)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {slot.status === 'BOOKED' && (
+                                <>
+                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Gebucht
+                                  </span>
+                                  {slot.booking && (
+                                    <span className="text-muted-foreground text-sm">
+                                      {slot.booking.companyName}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                              {slot.status === 'BLOCKED' && (
+                                <span className="text-muted-foreground inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium dark:bg-gray-800">
+                                  <XCircle className="h-3 w-3" />
+                                  Blockiert
                                 </span>
                               )}
-                            </>
-                          )}
-                          {slot.status === 'BLOCKED' && (
-                            <span className="text-muted-foreground inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium dark:bg-gray-800">
-                              <XCircle className="h-3 w-3" />
-                              Blockiert
-                            </span>
-                          )}
-                          {slot.status === 'AVAILABLE' && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                              <Clock className="h-3 w-3" />
-                              Verfügbar
-                            </span>
+                              {slot.status === 'AVAILABLE' && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  <Clock className="h-3 w-3" />
+                                  Verfügbar
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {slot.status !== 'BOOKED' && (
+                            <SlotRowMenu
+                              slot={slot}
+                              onToggleStatus={() =>
+                                toggleStatusMutation.mutate({
+                                  id: slot.id,
+                                  status: slot.status === 'AVAILABLE' ? 'BLOCKED' : 'AVAILABLE',
+                                })
+                              }
+                              onDelete={() => deleteSlotMutation.mutate(slot.id)}
+                            />
                           )}
                         </div>
-                      </div>
-                      {slot.status !== 'BOOKED' && (
-                        <SlotRowMenu
-                          slot={slot}
-                          onToggleStatus={() =>
-                            toggleStatusMutation.mutate({
-                              id: slot.id,
-                              status: slot.status === 'AVAILABLE' ? 'BLOCKED' : 'AVAILABLE',
-                            })
-                          }
-                          onDelete={() => deleteSlotMutation.mutate(slot.id)}
-                        />
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-muted-foreground py-12 text-center">
-                  <AlertCircle className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                  <p className="mb-4">Keine Termine für diesen Tag</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowBulkCreate(true)}
-                    disabled={!hasActiveEvent}
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Termine generieren
-                  </Button>
-                </div>
-              )}
-            </CardContent>
+                  ) : (
+                    <div className="text-muted-foreground py-12 text-center">
+                      <AlertCircle className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                      <p className="mb-4">Keine Termine für diesen Tag</p>
+                      <Button variant="outline" onClick={() => setShowBulkCreate(true)}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Termine generieren
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </>
+            ) : (
+              <>
+                <CardHeader>
+                  <CardTitle>Zeitslots</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-muted-foreground py-12 text-center">
+                    <Calendar className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>Keine aktive Veranstaltung vorhanden</p>
+                  </div>
+                </CardContent>
+              </>
+            )}
           </Card>
         </div>
 

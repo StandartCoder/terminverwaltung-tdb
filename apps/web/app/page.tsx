@@ -384,10 +384,10 @@ export default function HomePage() {
                   <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie ein Datum</h3>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {availableDates?.data.map((date) => (
+                    {availableDates?.data.map((dateInfo) => (
                       <button
-                        key={date}
-                        onClick={() => handleDateSelect(date.split('T')[0])}
+                        key={dateInfo.date}
+                        onClick={() => handleDateSelect(dateInfo.date.split('T')[0])}
                         className="bg-card hover:border-primary group rounded-xl border p-6 text-left transition-all hover:shadow-lg"
                       >
                         <div className="flex items-center gap-4">
@@ -395,8 +395,10 @@ export default function HomePage() {
                             <Calendar className="h-5 w-5" />
                           </div>
                           <div>
-                            <p className="font-semibold">{formatDateDisplay(date)}</p>
-                            <p className="text-muted-foreground text-sm">Verfügbare Termine</p>
+                            <p className="font-semibold">{formatDateDisplay(dateInfo.date)}</p>
+                            <p className="text-muted-foreground text-sm">
+                              {dateInfo.availableCount} verfügbare Termine
+                            </p>
                           </div>
                         </div>
                       </button>

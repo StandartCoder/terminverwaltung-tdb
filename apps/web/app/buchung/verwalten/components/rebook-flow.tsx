@@ -5,11 +5,11 @@ import { de } from 'date-fns/locale'
 import { ArrowRight, Calendar, Clock, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import type { BookingDetails, TimeSlot } from '@/lib/api'
+import type { BookingDetails, DateWithCount, TimeSlot } from '@/lib/api'
 
 interface RebookFlowProps {
   booking: BookingDetails
-  availableDates: string[]
+  availableDates: DateWithCount[]
   availableSlots: TimeSlot[]
   loadingSlots: boolean
   selectedDate: string | null
@@ -117,7 +117,7 @@ function DateSelection({
   onSelect,
   formatDate,
 }: {
-  dates: string[]
+  dates: DateWithCount[]
   onSelect: (date: string) => void
   formatDate: (d: string) => string
 }) {
@@ -125,14 +125,19 @@ function DateSelection({
     <div className="space-y-3">
       <h4 className="font-medium">Datum auswählen</h4>
       <div className="grid gap-2 sm:grid-cols-2">
-        {dates.map((date) => (
+        {dates.map((dateInfo) => (
           <button
-            key={date}
-            onClick={() => onSelect(date)}
+            key={dateInfo.date}
+            onClick={() => onSelect(dateInfo.date)}
             className="bg-card hover:border-primary flex items-center gap-3 rounded-lg border p-4 text-left transition-all hover:shadow-sm"
           >
             <Calendar className="text-primary h-5 w-5" />
-            <span className="font-medium">{formatDate(date)}</span>
+            <div>
+              <span className="font-medium">{formatDate(dateInfo.date)}</span>
+              <p className="text-muted-foreground text-sm">
+                {dateInfo.availableCount} verfügbare Termine
+              </p>
+            </div>
           </button>
         ))}
       </div>

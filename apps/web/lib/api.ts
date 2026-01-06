@@ -157,7 +157,7 @@ export const api = {
     },
     dates: async () => {
       const res = await fetch(`${API_BASE}/api/timeslots/dates`)
-      return handleResponse<{ data: string[] }>(res)
+      return handleResponse<{ data: DateWithCount[] }>(res)
     },
     settings: async () => {
       const res = await fetch(`${API_BASE}/api/timeslots/settings`)
@@ -429,6 +429,11 @@ export interface TimeSlotFilterParams {
   departmentId?: string
   date?: string
   available?: boolean
+}
+
+export interface DateWithCount {
+  date: string
+  availableCount: number
 }
 
 export interface CreateTimeSlotData {

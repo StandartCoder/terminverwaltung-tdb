@@ -17,6 +17,7 @@ import {
   createAdmin,
   createTimeSlot,
   createBooking,
+  createEvent,
   setSetting,
 } from './factories'
 import { post, get, patch, del, getData } from './helpers'
@@ -211,6 +212,7 @@ describe('TimeSlots API', () => {
     })
 
     it('allows teacher to create own timeslot', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
 
       const res = await post(
@@ -249,6 +251,7 @@ describe('TimeSlots API', () => {
     })
 
     it('allows admin to create slot for any teacher', async () => {
+      await createEvent() // Need active event for timeslot creation
       const admin = await createAdmin()
       const teacher = await createTeacher()
 
@@ -267,6 +270,7 @@ describe('TimeSlots API', () => {
     })
 
     it('rejects duplicate timeslot', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
       await createTimeSlot({
         teacherId: teacher.id,
@@ -310,6 +314,7 @@ describe('TimeSlots API', () => {
 
   describe('POST /api/timeslots/bulk - Bulk Create TimeSlots', () => {
     it('creates multiple slots at once', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
 
       const res = await post(
@@ -336,6 +341,7 @@ describe('TimeSlots API', () => {
     })
 
     it('skips existing slots (upsert behavior)', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
       await createTimeSlot({
         teacherId: teacher.id,
@@ -367,6 +373,7 @@ describe('TimeSlots API', () => {
 
   describe('POST /api/timeslots/generate - Auto-Generate TimeSlots', () => {
     it('generates slots based on settings', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
 
       const res = await post(
@@ -394,6 +401,7 @@ describe('TimeSlots API', () => {
     })
 
     it('respects buffer between slots', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
 
       const res = await post(
@@ -416,6 +424,7 @@ describe('TimeSlots API', () => {
 
     // TODO: Settings from database not fully read/used when generating timeslots
     it.skip('uses settings from database when not provided', async () => {
+      await createEvent() // Need active event for timeslot creation
       await setSetting('slot_duration_minutes', '15')
       await setSetting('day_start_time', '08:00')
       await setSetting('day_end_time', '09:00')
@@ -443,6 +452,7 @@ describe('TimeSlots API', () => {
     })
 
     it('rejects invalid time range', async () => {
+      await createEvent() // Need active event for timeslot creation
       const { teacher, accessToken } = await createTeacherWithAuth()
 
       const res = await post(

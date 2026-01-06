@@ -11,7 +11,6 @@ import {
   Calendar,
   CalendarOff,
   CheckCircle2,
-  ChevronRight,
   Clock,
   GraduationCap,
   Mail,
@@ -70,12 +69,26 @@ function createBookingSchema(settings: PublicSettings) {
 
 type BookingFormData = z.infer<ReturnType<typeof createBookingSchema>>
 
-type BookingStep = 'department' | 'date' | 'slot' | 'form' | 'confirmation'
+interface TeacherWithSlots {
+  id: string
+  firstName: string
+  lastName: string
+  room?: string | null
+  department?: {
+    id: string
+    name: string
+    color?: string | null
+  } | null
+  availableSlots: number
+}
+
+type BookingStep = 'department' | 'date' | 'teacher' | 'slot' | 'form' | 'confirmation'
 
 export default function HomePage() {
   const [step, setStep] = useState<BookingStep>('department')
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherWithSlots | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null)
   const { toast } = useToast()
@@ -128,14 +141,49 @@ export default function HomePage() {
   })
 
   const { data: slots, isLoading: loadingSlots } = useQuery({
-    queryKey: ['slots', selectedDepartment?.id, selectedDate],
+    queryKey: ['slots', selectedDepartment?.id, selectedDate, selectedTeacher?.id],
     queryFn: () =>
       api.timeslots.available({
         departmentId: selectedDepartment?.id,
         date: selectedDate || undefined,
+        teacherId: selectedTeacher?.id,
       }),
     enabled: !!selectedDepartment && !!selectedDate,
   })
+
+  // Derive available teachers from slots
+  const availableTeachers = useMemo((): TeacherWithSlots[] => {
+    if (!slots?.data) return []
+
+    const teacherMap = new Map<string, TeacherWithSlots>()
+
+    slots.data.forEach((slot) => {
+      if (!slot.teacher) return
+      const existing = teacherMap.get(slot.teacher.id)
+      if (existing) {
+        existing.availableSlots++
+      } else {
+        teacherMap.set(slot.teacher.id, {
+          id: slot.teacher.id,
+          firstName: slot.teacher.firstName,
+          lastName: slot.teacher.lastName,
+          room: slot.teacher.room,
+          department: slot.teacher.department,
+          availableSlots: 1,
+        })
+      }
+    })
+
+    return Array.from(teacherMap.values()).sort((a, b) =>
+      `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)
+    )
+  }, [slots?.data])
+
+  // Filter slots for selected teacher
+  const teacherSlots = useMemo(() => {
+    if (!slots?.data || !selectedTeacher) return []
+    return slots.data.filter((slot) => slot.teacher?.id === selectedTeacher.id)
+  }, [slots?.data, selectedTeacher])
 
   const bookingMutation = useMutation({
     mutationFn: (data: BookingFormData) =>
@@ -184,6 +232,11 @@ export default function HomePage() {
 
   const handleDateSelect = (date: string) => {
     setSelectedDate(date)
+    setStep('teacher')
+  }
+
+  const handleTeacherSelect = (teacher: TeacherWithSlots) => {
+    setSelectedTeacher(teacher)
     setStep('slot')
   }
 
@@ -196,9 +249,12 @@ export default function HomePage() {
     if (step === 'date') {
       setSelectedDepartment(null)
       setStep('department')
-    } else if (step === 'slot') {
+    } else if (step === 'teacher') {
       setSelectedDate(null)
       setStep('date')
+    } else if (step === 'slot') {
+      setSelectedTeacher(null)
+      setStep('teacher')
     } else if (step === 'form') {
       setSelectedSlot(null)
       setStep('slot')
@@ -213,6 +269,7 @@ export default function HomePage() {
     setStep('department')
     setSelectedDepartment(null)
     setSelectedDate(null)
+    setSelectedTeacher(null)
     setSelectedSlot(null)
     setConfirmation(null)
     form.reset()
@@ -226,16 +283,6 @@ export default function HomePage() {
   const formatDateDisplay = (dateStr: string) => {
     const date = parseISO(dateStr)
     return format(date, 'EEEE, d. MMMM yyyy', { locale: de })
-  }
-
-  const groupSlotsByTeacher = (slots: TimeSlot[]) => {
-    const grouped: Record<string, TimeSlot[]> = {}
-    slots.forEach((slot) => {
-      const teacherKey = slot.teacher?.id || 'unknown'
-      if (!grouped[teacherKey]) grouped[teacherKey] = []
-      grouped[teacherKey].push(slot)
-    })
-    return grouped
   }
 
   return (
@@ -301,31 +348,86 @@ export default function HomePage() {
 
               {/* Progress Steps */}
               {step !== 'confirmation' && (
-                <div className="mb-8 flex items-center justify-center gap-2">
-                  {['department', 'date', 'slot', 'form'].map((s, i) => (
-                    <div key={s} className="flex items-center">
-                      <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                          step === s
-                            ? 'bg-primary text-primary-foreground'
-                            : ['department', 'date', 'slot', 'form'].indexOf(step) > i
-                              ? 'bg-primary/20 text-primary'
-                              : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {i + 1}
-                      </div>
-                      {i < 3 && (
-                        <ChevronRight
-                          className={`mx-1 h-4 w-4 ${
-                            ['department', 'date', 'slot', 'form'].indexOf(step) > i
-                              ? 'text-primary'
-                              : 'text-muted-foreground/50'
+                <div className="mb-8">
+                  {/* Mobile: compact view */}
+                  <div className="flex items-center justify-center gap-1.5 sm:hidden">
+                    {['department', 'date', 'teacher', 'slot', 'form'].map((s, i) => {
+                      const steps = ['department', 'date', 'teacher', 'slot', 'form']
+                      const currentIndex = steps.indexOf(step)
+                      const isActive = step === s
+                      const isCompleted = currentIndex > i
+
+                      return (
+                        <div
+                          key={s}
+                          className={`h-2 flex-1 rounded-full transition-colors ${
+                            isActive ? 'bg-primary' : isCompleted ? 'bg-primary/40' : 'bg-muted'
                           }`}
                         />
-                      )}
-                    </div>
-                  ))}
+                      )
+                    })}
+                  </div>
+                  <p className="text-muted-foreground mt-2 text-center text-sm sm:hidden">
+                    Schritt {['department', 'date', 'teacher', 'slot', 'form'].indexOf(step) + 1}{' '}
+                    von 5
+                  </p>
+
+                  {/* Desktop: full stepper */}
+                  <div className="hidden items-center justify-center sm:flex">
+                    {[
+                      { key: 'department', label: 'Bereich', icon: Building2 },
+                      { key: 'date', label: 'Datum', icon: Calendar },
+                      { key: 'teacher', label: 'Lehrkraft', icon: User },
+                      { key: 'slot', label: 'Uhrzeit', icon: Clock },
+                      { key: 'form', label: 'Daten', icon: Mail },
+                    ].map((s, i, arr) => {
+                      const steps = ['department', 'date', 'teacher', 'slot', 'form']
+                      const currentIndex = steps.indexOf(step)
+                      const isActive = step === s.key
+                      const isCompleted = currentIndex > i
+                      const Icon = s.icon
+
+                      return (
+                        <div key={s.key} className="flex items-center">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
+                                isActive
+                                  ? 'bg-primary text-primary-foreground ring-primary/20 ring-4'
+                                  : isCompleted
+                                    ? 'bg-primary/20 text-primary'
+                                    : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <CheckCircle2 className="h-5 w-5" />
+                              ) : (
+                                <Icon className="h-5 w-5" />
+                              )}
+                            </div>
+                            <span
+                              className={`mt-1.5 text-xs font-medium ${
+                                isActive
+                                  ? 'text-primary'
+                                  : isCompleted
+                                    ? 'text-primary/70'
+                                    : 'text-muted-foreground'
+                              }`}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+                          {i < arr.length - 1 && (
+                            <div
+                              className={`mx-2 h-0.5 w-8 transition-colors lg:w-12 ${
+                                isCompleted ? 'bg-primary/40' : 'bg-muted'
+                              }`}
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -383,29 +485,37 @@ export default function HomePage() {
 
                   <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie ein Datum</h3>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {availableDates?.data.map((dateInfo) => (
-                      <button
-                        key={dateInfo.date}
-                        onClick={() => handleDateSelect(dateInfo.date.split('T')[0])}
-                        className="bg-card hover:border-primary group rounded-xl border p-6 text-left transition-all hover:shadow-lg"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="bg-primary/10 text-primary flex h-14 w-14 flex-col items-center justify-center rounded-lg">
-                            <Calendar className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <p className="font-semibold">{formatDateDisplay(dateInfo.date)}</p>
-                            <p className="text-muted-foreground text-sm">
-                              {dateInfo.availableCount} verfügbare Termine
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                  {availableDates?.data && availableDates.data.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {availableDates.data.map((dateInfo, index) => {
+                        const isLast = index === availableDates.data.length - 1
+                        const isOddTotal = availableDates.data.length % 2 === 1
+                        const shouldSpanFull = isLast && isOddTotal
 
-                  {availableDates?.data.length === 0 && (
+                        return (
+                          <button
+                            key={dateInfo.date}
+                            onClick={() => handleDateSelect(dateInfo.date.split('T')[0])}
+                            className={`bg-card hover:border-primary group rounded-xl border p-6 text-left transition-all hover:shadow-lg ${
+                              shouldSpanFull ? 'sm:col-span-2' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="bg-primary/10 text-primary flex h-14 w-14 flex-col items-center justify-center rounded-lg">
+                                <Calendar className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <p className="font-semibold">{formatDateDisplay(dateInfo.date)}</p>
+                                <p className="text-muted-foreground text-sm">
+                                  {dateInfo.availableCount} verfügbare Termine
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
                     <Card>
                       <CardContent className="flex flex-col items-center justify-center py-12">
                         <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
@@ -416,8 +526,8 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Step 3: Time Slot Selection */}
-              {step === 'slot' && (
+              {/* Step 3: Teacher Selection */}
+              {step === 'teacher' && (
                 <div className="space-y-4">
                   <div className="mb-6 flex items-center gap-2">
                     <Button variant="ghost" size="sm" onClick={handleBack}>
@@ -431,75 +541,137 @@ export default function HomePage() {
                     </span>
                   </div>
 
-                  <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie einen Termin</h3>
+                  <h3 className="mb-6 text-center text-lg font-medium">
+                    Wählen Sie eine Lehrkraft
+                  </h3>
 
                   {loadingSlots ? (
-                    <div className="space-y-4">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="bg-muted h-48 animate-pulse rounded-xl" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="bg-muted h-24 animate-pulse rounded-xl" />
                       ))}
                     </div>
-                  ) : slots?.data && slots.data.length > 0 ? (
-                    <div className="space-y-6">
-                      {Object.entries(groupSlotsByTeacher(slots.data)).map(
-                        ([teacherId, teacherSlots]) => {
-                          const teacher = teacherSlots[0]?.teacher
-                          if (!teacher) return null
-
-                          return (
-                            <Card key={teacherId}>
-                              <CardHeader className="pb-3">
-                                <div className="flex items-center gap-4">
-                                  <div
-                                    className="flex h-12 w-12 items-center justify-center rounded-full font-medium text-white"
-                                    style={{
-                                      backgroundColor: teacher.department?.color || '#3B82F6',
-                                    }}
-                                  >
-                                    {teacher.firstName[0]}
-                                    {teacher.lastName[0]}
-                                  </div>
-                                  <div>
-                                    <CardTitle className="text-lg">
-                                      {teacher.firstName} {teacher.lastName}
-                                    </CardTitle>
-                                    <CardDescription className="flex items-center gap-2">
-                                      {teacher.room && (
-                                        <>
-                                          <MapPin className="h-3 w-3" />
-                                          Raum {teacher.room}
-                                        </>
-                                      )}
-                                    </CardDescription>
-                                  </div>
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="flex flex-wrap gap-2">
-                                  {teacherSlots.map((slot) => (
-                                    <button
-                                      key={slot.id}
-                                      onClick={() => handleSlotSelect(slot)}
-                                      className="bg-background hover:border-primary hover:bg-primary hover:text-primary-foreground inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all"
-                                    >
-                                      <Clock className="h-4 w-4" />
-                                      {formatTimeDisplay(slot.startTime)} -{' '}
-                                      {formatTimeDisplay(slot.endTime)}
-                                    </button>
-                                  ))}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        }
-                      )}
+                  ) : availableTeachers.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {availableTeachers.map((teacher) => (
+                        <button
+                          key={teacher.id}
+                          onClick={() => handleTeacherSelect(teacher)}
+                          className="bg-card hover:border-primary hover:shadow-primary/5 group relative overflow-hidden rounded-xl border p-5 text-left transition-all hover:shadow-lg"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-medium text-white"
+                              style={{
+                                backgroundColor: teacher.department?.color || '#3B82F6',
+                              }}
+                            >
+                              {teacher.firstName[0]}
+                              {teacher.lastName[0]}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="truncate font-semibold">
+                                {teacher.firstName} {teacher.lastName}
+                              </h4>
+                              <div className="text-muted-foreground mt-1 flex items-center gap-3 text-sm">
+                                {teacher.room && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    Raum {teacher.room}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {teacher.availableSlots}{' '}
+                                  {teacher.availableSlots === 1 ? 'Termin' : 'Termine'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   ) : (
                     <Card>
                       <CardContent className="flex flex-col items-center justify-center py-12">
                         <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
                         <p className="text-muted-foreground mt-4">
-                          Keine verfügbaren Termine für dieses Datum
+                          Keine verfügbaren Lehrkräfte für dieses Datum
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Step 4: Time Slot Selection */}
+              {step === 'slot' && selectedTeacher && (
+                <div className="space-y-4">
+                  <div className="mb-6 flex flex-wrap items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleBack}>
+                      Zurück
+                    </Button>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">{selectedDepartment?.name}</span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      {selectedDate && formatDateDisplay(selectedDate)}
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      {selectedTeacher.firstName} {selectedTeacher.lastName}
+                    </span>
+                  </div>
+
+                  <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie eine Uhrzeit</h3>
+
+                  {/* Teacher info card */}
+                  <Card className="border-primary/20 mb-6">
+                    <CardContent className="py-4">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-medium text-white"
+                          style={{
+                            backgroundColor: selectedTeacher.department?.color || '#3B82F6',
+                          }}
+                        >
+                          {selectedTeacher.firstName[0]}
+                          {selectedTeacher.lastName[0]}
+                        </div>
+                        <div>
+                          <p className="font-semibold">
+                            {selectedTeacher.firstName} {selectedTeacher.lastName}
+                          </p>
+                          {selectedTeacher.room && (
+                            <p className="text-muted-foreground flex items-center gap-1 text-sm">
+                              <MapPin className="h-3 w-3" />
+                              Raum {selectedTeacher.room}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {teacherSlots.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {teacherSlots.map((slot) => (
+                        <button
+                          key={slot.id}
+                          onClick={() => handleSlotSelect(slot)}
+                          className="bg-card hover:border-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all"
+                        >
+                          <Clock className="h-4 w-4" />
+                          {formatTimeDisplay(slot.startTime)} - {formatTimeDisplay(slot.endTime)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12">
+                        <AlertCircle className="text-muted-foreground/50 h-12 w-12" />
+                        <p className="text-muted-foreground mt-4">
+                          Keine verfügbaren Termine für diese Lehrkraft
                         </p>
                       </CardContent>
                     </Card>

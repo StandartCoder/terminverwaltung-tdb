@@ -155,8 +155,11 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/timeslots/available?${searchParams}`)
       return handleResponse<{ data: TimeSlot[] }>(res)
     },
-    dates: async () => {
-      const res = await fetch(`${API_BASE}/api/timeslots/dates`)
+    dates: async (params?: { departmentId?: string }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.departmentId) searchParams.set('departmentId', params.departmentId)
+      const query = searchParams.toString()
+      const res = await fetch(`${API_BASE}/api/timeslots/dates${query ? `?${query}` : ''}`)
       return handleResponse<{ data: DateWithCount[] }>(res)
     },
     settings: async () => {

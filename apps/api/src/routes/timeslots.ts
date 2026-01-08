@@ -141,10 +141,15 @@ timeslotsRouter.get('/available', zValidator('query', timeSlotFilterSchema), asy
   return c.json({ data: timeSlots })
 })
 
-timeslotsRouter.get('/dates', async (c) => {
+timeslotsRouter.get('/dates', zValidator('query', timeSlotFilterSchema), async (c) => {
+  const { departmentId } = c.req.valid('query')
+
   const dates = await db.timeSlot.groupBy({
     by: ['date'],
-    where: { status: 'AVAILABLE' },
+    where: {
+      status: 'AVAILABLE',
+      ...(departmentId && { teacher: { departmentId } }),
+    },
     _count: { id: true },
     orderBy: { date: 'asc' },
   })

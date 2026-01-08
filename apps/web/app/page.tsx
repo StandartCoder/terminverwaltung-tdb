@@ -245,20 +245,24 @@ export default function HomePage() {
     setStep('form')
   }
 
-  const handleBack = () => {
-    if (step === 'date') {
+  const goToStep = (targetStep: BookingStep) => {
+    // Clear selections for steps after the target
+    if (targetStep === 'department') {
       setSelectedDepartment(null)
-      setStep('department')
-    } else if (step === 'teacher') {
       setSelectedDate(null)
-      setStep('date')
-    } else if (step === 'slot') {
       setSelectedTeacher(null)
-      setStep('teacher')
-    } else if (step === 'form') {
       setSelectedSlot(null)
-      setStep('slot')
+    } else if (targetStep === 'date') {
+      setSelectedDate(null)
+      setSelectedTeacher(null)
+      setSelectedSlot(null)
+    } else if (targetStep === 'teacher') {
+      setSelectedTeacher(null)
+      setSelectedSlot(null)
+    } else if (targetStep === 'slot') {
+      setSelectedSlot(null)
     }
+    setStep(targetStep)
   }
 
   const onSubmit = (data: BookingFormData) => {
@@ -286,7 +290,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="from-background to-muted/30 min-h-screen bg-gradient-to-b">
+    <div className="from-background to-muted/30 flex min-h-screen flex-col bg-gradient-to-b">
       <header className="bg-card/80 sticky top-0 z-50 border-b backdrop-blur-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
@@ -315,7 +319,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="container py-8 md:py-12">
+      <main className="container flex-1 py-8 md:py-12">
         <div className="mx-auto max-w-4xl">
           {loadingEvent ? (
             <div className="flex flex-col items-center justify-center py-24">
@@ -476,11 +480,14 @@ export default function HomePage() {
               {/* Step 2: Date Selection */}
               {step === 'date' && (
                 <div className="space-y-4">
-                  <div className="mb-6 flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={handleBack}>
-                      Zurück
-                    </Button>
-                    <span className="text-muted-foreground">|</span>
+                  <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      Start
+                    </button>
+                    <span className="text-muted-foreground">/</span>
                     <span className="font-medium">{selectedDepartment?.name}</span>
                   </div>
 
@@ -530,16 +537,29 @@ export default function HomePage() {
               {/* Step 3: Teacher Selection */}
               {step === 'teacher' && (
                 <div className="space-y-4">
-                  <div className="mb-6 flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={handleBack}>
-                      Zurück
-                    </Button>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="font-medium">{selectedDepartment?.name}</span>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="font-medium">
+                  <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      Start
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      {selectedDepartment?.name}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('date')}
+                      className="text-primary hover:underline"
+                    >
                       {selectedDate && formatDateDisplay(selectedDate)}
-                    </span>
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="font-medium">Lehrkraft wählen</span>
                   </div>
 
                   <h3 className="mb-6 text-center text-lg font-medium">
@@ -608,20 +628,36 @@ export default function HomePage() {
               {/* Step 4: Time Slot Selection */}
               {step === 'slot' && selectedTeacher && (
                 <div className="space-y-4">
-                  <div className="mb-6 flex flex-wrap items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={handleBack}>
-                      Zurück
-                    </Button>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="font-medium">{selectedDepartment?.name}</span>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="font-medium">
+                  <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      Start
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      {selectedDepartment?.name}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('date')}
+                      className="text-primary hover:underline"
+                    >
                       {selectedDate && formatDateDisplay(selectedDate)}
-                    </span>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="font-medium">
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('teacher')}
+                      className="text-primary hover:underline"
+                    >
                       {selectedTeacher.firstName} {selectedTeacher.lastName}
-                    </span>
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="font-medium">Uhrzeit wählen</span>
                   </div>
 
                   <h3 className="mb-6 text-center text-lg font-medium">Wählen Sie eine Uhrzeit</h3>
@@ -680,13 +716,47 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Step 4: Booking Form */}
+              {/* Step 5: Booking Form */}
               {step === 'form' && selectedSlot && (
                 <div className="space-y-6">
-                  <div className="mb-6 flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={handleBack}>
-                      Zurück
-                    </Button>
+                  <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      Start
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('department')}
+                      className="text-primary hover:underline"
+                    >
+                      {selectedDepartment?.name}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('date')}
+                      className="text-primary hover:underline"
+                    >
+                      {selectedDate && formatDateDisplay(selectedDate)}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('teacher')}
+                      className="text-primary hover:underline"
+                    >
+                      {selectedTeacher?.firstName} {selectedTeacher?.lastName}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <button
+                      onClick={() => goToStep('slot')}
+                      className="text-primary hover:underline"
+                    >
+                      {formatTimeDisplay(selectedSlot.startTime)} -{' '}
+                      {formatTimeDisplay(selectedSlot.endTime)}
+                    </button>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="font-medium">Daten eingeben</span>
                   </div>
 
                   <Card className="border-primary/20">
@@ -1021,7 +1091,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="bg-muted/30 mt-12 border-t py-8">
+      <footer className="bg-muted/30 mt-auto border-t py-8">
         <div className="container">
           <div className="grid gap-8 md:grid-cols-3">
             <div>

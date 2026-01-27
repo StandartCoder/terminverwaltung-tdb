@@ -135,9 +135,9 @@ export default function HomePage() {
   })
 
   const { data: availableDates } = useQuery({
-    queryKey: ['dates', selectedDepartment?.id],
-    queryFn: () => api.timeslots.dates({ departmentId: selectedDepartment?.id }),
-    enabled: step === 'date' && !!selectedDepartment,
+    queryKey: ['dates'],
+    queryFn: () => api.timeslots.dates(),
+    enabled: step === 'date',
   })
 
   const { data: slots, isLoading: loadingSlots } = useQuery({

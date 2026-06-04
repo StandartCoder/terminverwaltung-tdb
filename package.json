@@ -1,6 +1,7 @@
 {
   "name": "terminverwaltung-tdb",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@9.14.2",
   "engines": {
     "node": ">=20.0.0"

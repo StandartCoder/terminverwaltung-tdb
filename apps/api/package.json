@@ -2,6 +2,7 @@
   "name": "@terminverwaltung/api",
   "version": "0.2.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
